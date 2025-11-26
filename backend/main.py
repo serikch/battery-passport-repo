@@ -81,7 +81,12 @@ origins = [
     "http://127.0.0.1:8501",
     "http://127.0.0.1:8502",
     "http://127.0.0.1:8503",
-    os.getenv("FRONTEND_URL", "http://localhost:8501"),
+    # Production Streamlit Cloud (à adapter avec tes vraies URLs)
+    "https://battery-passport-repo-6daplyh9wj7vlxwz6adzcp.streamlit.app",
+    "https://battery-passport-repo-bhlvfjv3mzghroajqqpvoj.streamlit.app",
+    "https://battery-passport-repo-nmeszl3tuxqxjyw7qkfjwc.streamlit.app",
+    # Wildcard Streamlit (si besoin)
+    "https://*.streamlit.app",
 ]
 
 app.add_middleware(
