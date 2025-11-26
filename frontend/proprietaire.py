@@ -8,12 +8,11 @@ Lancer avec : streamlit run frontend/proprietaire.py --server.port 8502
 import streamlit as st
 import requests
 from datetime import datetime
+from config import API_BASE_URL
 
 # ============================================
 # CONFIGURATION
 # ============================================
-
-API_BASE_URL = "http://localhost:8000"
 
 st.set_page_config(
     page_title="🏢 Propriétaire BP - Battery Passport",

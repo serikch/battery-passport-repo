@@ -8,12 +8,11 @@ Lancer avec : streamlit run frontend/centre_tri.py --server.port 8503
 import streamlit as st
 import requests
 from datetime import datetime
+from config import API_BASE_URL
 
 # ============================================
 # CONFIGURATION
 # ============================================
-
-API_BASE_URL = "http://localhost:8000"
 
 st.set_page_config(
     page_title="♻️ Centre de Tri - Battery Passport",
