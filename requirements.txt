@@ -1,10 +1,23 @@
-fastapi==0.104.1
-uvicorn==0.24.0
-neo4j==5.14.1
-python-dotenv==1.0.0
-pydantic==2.5.2
-qrcode[pil]==7.4.2
-python-multipart==0.0.6
-streamlit==1.29.0
-streamlit-webrtc==0.47.1
-Pillow==10.1.0
+# FastAPI & Server
+fastapi>=0.104.0
+uvicorn>=0.24.0
+python-multipart>=0.0.6
+
+# Neo4j
+neo4j>=5.14.0
+
+# Data validation
+pydantic>=2.5.0
+
+# Environment
+python-dotenv>=1.0.0
+
+# QR Code - versions compatibles Python 3.13
+qrcode[pil]>=7.4.2
+Pillow>=10.4.0
+
+# Frontend Streamlit (si déployé ensemble)
+# streamlit>=1.29.0
+
+# Utils
+requests>=2.31.0
