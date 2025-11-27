@@ -111,12 +111,7 @@ async def list_notifications(
     battery_id: Optional[str] = Query(None, description="Filtrer par batterie"),
     urgency: Optional[str] = Query(None, description="Filtrer par urgence (low, normal, high)")
 ):
-    """
-    Liste toutes les notifications.
-    Utilisé par le Propriétaire BP pour voir les demandes des garagistes.
-    """
     try:
-        # Récupérer depuis Neo4j
         query = """
         MATCH (b:BatteryInstance)-[:HAS_NOTIFICATION]->(n:Notification)
         RETURN n.notificationId AS notificationId,
@@ -125,7 +120,7 @@ async def list_notifications(
                n.senderRole AS senderRole,
                n.senderName AS senderName,
                n.urgency AS urgency,
-               n.createdAt AS createdAt,
+               toString(n.createdAt) AS createdAt,
                n.read AS read,
                n.status AS status
         ORDER BY n.createdAt DESC
