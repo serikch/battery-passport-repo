@@ -1,0 +1,941 @@
+import React, { useState, useEffect } from 'react';
+import { Battery, Wrench, Building2, Recycle, Lock, User, ArrowRight, Sparkles, Bell, LogOut, Menu, X, QrCode, Search, AlertTriangle, CheckCircle, Activity, Send, Thermometer, Zap, Gauge, RefreshCw, TrendingUp, Package, Filter, LayoutDashboard, List } from 'lucide-react';
+
+// ==================== CONFIGURATION ====================
+const API_BASE_URL = 'https://battery-passport-api.onrender.com';
+
+// Demo credentials
+const DEMO_CREDENTIALS = {
+  garagiste: { username: 'garage.martin', password: 'demo123' },
+  proprietaire: { username: 'bp.owner', password: 'demo123' },
+  'centre-tri': { username: 'eco.recycle', password: 'demo123' }
+};
+
+// ==================== STYLES ====================
+const styles = {
+  glassCard: "bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl shadow-xl",
+  glassButton: "px-4 py-2 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl text-white font-medium transition-all hover:bg-white/10 hover:border-white/20 flex items-center justify-center gap-2",
+  glassInput: "w-full px-4 py-3 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 transition-all",
+  primaryButton: "px-6 py-3 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-xl text-white font-semibold transition-all hover:shadow-lg hover:shadow-purple-500/25 flex items-center justify-center gap-2",
+  dangerButton: "px-6 py-3 bg-gradient-to-r from-red-500 to-orange-500 rounded-xl text-white font-semibold transition-all hover:shadow-lg hover:shadow-red-500/25 flex items-center justify-center gap-2",
+  successButton: "px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl text-white font-semibold transition-all hover:shadow-lg hover:shadow-green-500/25 flex items-center justify-center gap-2",
+};
+
+// ==================== API FUNCTIONS ====================
+const api = {
+  async getBatteryFull(id) {
+    const res = await fetch(`${API_BASE_URL}/battery/${id}/full`);
+    if (!res.ok) throw new Error('Battery not found');
+    return res.json();
+  },
+  async getAllBatteries() {
+    const res = await fetch(`${API_BASE_URL}/battery/`);
+    return res.json();
+  },
+  async getDiagnostic(id) {
+    const res = await fetch(`${API_BASE_URL}/modules/battery/${id}/diagnostic`);
+    return res.json();
+  },
+  async getNotifications() {
+    const res = await fetch(`${API_BASE_URL}/notifications/`);
+    return res.json();
+  },
+  async getAlerts() {
+    const res = await fetch(`${API_BASE_URL}/modules/alerts`);
+    return res.json();
+  },
+  async getDecision(id, marketDemand) {
+    const res = await fetch(`${API_BASE_URL}/modules/battery/${id}/decision?market_demand=${marketDemand}`, { method: 'POST' });
+    return res.json();
+  },
+  async updateStatus(id, status) {
+    const res = await fetch(`${API_BASE_URL}/battery/${id}/status`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ newStatus: status })
+    });
+    return res.json();
+  },
+  async reportWaste(id, reason, garageName) {
+    const res = await fetch(`${API_BASE_URL}/notifications/report-waste/${id}?reason=${encodeURIComponent(reason)}&garage_name=${encodeURIComponent(garageName)}`, { method: 'POST' });
+    return res.json();
+  },
+  async confirmReception(id, centerName) {
+    const res = await fetch(`${API_BASE_URL}/notifications/confirm-reception/${id}?center_name=${encodeURIComponent(centerName)}`, { method: 'POST' });
+    return res.json();
+  }
+};
+
+// ==================== COMPONENTS ====================
+
+// Toast notification
+const Toast = ({ message, type, onClose }) => (
+  <div className={`fixed top-4 right-4 z-50 px-6 py-4 rounded-xl backdrop-blur-xl border ${
+    type === 'success' ? 'bg-green-500/20 border-green-500/30 text-green-400' :
+    type === 'error' ? 'bg-red-500/20 border-red-500/30 text-red-400' :
+    'bg-white/10 border-white/20 text-white'
+  } animate-pulse`}>
+    <div className="flex items-center gap-3">
+      {type === 'success' && <CheckCircle className="w-5 h-5" />}
+      {type === 'error' && <AlertTriangle className="w-5 h-5" />}
+      <span>{message}</span>
+      <button onClick={onClose} className="ml-2 hover:opacity-70">×</button>
+    </div>
+  </div>
+);
+
+// Status Badge
+const StatusBadge = ({ status }) => {
+  const colors = {
+    Original: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+    Waste: 'bg-red-500/20 text-red-400 border-red-500/30',
+    Reused: 'bg-green-500/20 text-green-400 border-green-500/30',
+    Repurposed: 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+  };
+  return (
+    <span className={`px-3 py-1 rounded-full text-xs font-bold border ${colors[status] || colors.Original}`}>
+      {status}
+    </span>
+  );
+};
+
+// Module Card
+const ModuleCard = ({ module }) => {
+  const ratio = (module.internalResistance / module.maxResistance) * 100;
+  const status = module.isDefective ? 'critical' : ratio > 80 ? 'warning' : 'ok';
+  
+  return (
+    <div className={`p-4 rounded-xl border ${
+      status === 'critical' ? 'border-red-500/50 bg-red-500/10' :
+      status === 'warning' ? 'border-yellow-500/50 bg-yellow-500/10' :
+      'border-white/10 bg-white/5'
+    }`}>
+      <div className="flex items-center justify-between mb-3">
+        <span className="font-bold">{module.moduleId}</span>
+        <span className={`text-xs px-2 py-1 rounded-full ${
+          status === 'critical' ? 'bg-red-500/20 text-red-400' :
+          status === 'warning' ? 'bg-yellow-500/20 text-yellow-400' :
+          'bg-green-500/20 text-green-400'
+        }`}>
+          {status === 'critical' ? 'Critique' : status === 'warning' ? 'Attention' : 'OK'}
+        </span>
+      </div>
+      <div className="space-y-2 text-xs">
+        <div className="flex justify-between">
+          <span className="text-gray-400">Résistance</span>
+          <span className={status === 'critical' ? 'text-red-400' : ''}>{module.internalResistance?.toFixed(3)}Ω</span>
+        </div>
+        <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+          <div 
+            className={`h-full rounded-full ${
+              status === 'critical' ? 'bg-gradient-to-r from-red-500 to-red-400' :
+              status === 'warning' ? 'bg-gradient-to-r from-yellow-500 to-yellow-400' :
+              'bg-gradient-to-r from-green-500 to-green-400'
+            }`}
+            style={{ width: `${Math.min(ratio, 100)}%` }}
+          />
+        </div>
+        <div className="flex justify-between"><span className="text-gray-400">SOH</span><span>{module.soh}%</span></div>
+        <div className="flex justify-between"><span className="text-gray-400">Temp</span><span>{module.temperature}°C</span></div>
+      </div>
+    </div>
+  );
+};
+
+// Battery Info Card
+const BatteryInfoCard = ({ battery, showModules }) => (
+  <div className={`${styles.glassCard} p-6`}>
+    <div className="flex items-start justify-between mb-6">
+      <div className="flex items-center gap-3">
+        <div className="p-3 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500">
+          <Battery className="w-6 h-6 text-white" />
+        </div>
+        <div>
+          <h3 className="font-bold text-lg">{battery.batteryId}</h3>
+          <p className="text-sm text-gray-400">{battery.batteryPassportId}</p>
+        </div>
+      </div>
+      <StatusBadge status={battery.status} />
+    </div>
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="p-3 bg-white/5 rounded-xl">
+        <p className="text-xs text-gray-400 mb-1">Modèle</p>
+        <p className="font-semibold text-sm">{battery.modelName || 'N/A'}</p>
+      </div>
+      <div className="p-3 bg-white/5 rounded-xl">
+        <p className="text-xs text-gray-400 mb-1">Fabricant</p>
+        <p className="font-semibold text-sm">{battery.manufacturer || 'N/A'}</p>
+      </div>
+      <div className="p-3 bg-white/5 rounded-xl">
+        <p className="text-xs text-gray-400 mb-1">Chimie</p>
+        <p className="font-semibold text-sm">{battery.composition || 'N/A'}</p>
+      </div>
+      <div className="p-3 bg-white/5 rounded-xl">
+        <p className="text-xs text-gray-400 mb-1">Masse</p>
+        <p className="font-semibold text-sm">{battery.massKg ? `${battery.massKg} kg` : 'N/A'}</p>
+      </div>
+    </div>
+    {showModules && battery.modules?.length > 0 && (
+      <div>
+        <h4 className="font-semibold mb-3 flex items-center gap-2">
+          Modules ({battery.modules.length})
+          {battery.hasDefectiveModule && (
+            <span className="px-2 py-0.5 bg-red-500/20 text-red-400 text-xs rounded-full">
+              {battery.defectiveModulesCount} défaillant(s)
+            </span>
+          )}
+        </h4>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          {battery.modules.map((module) => <ModuleCard key={module.moduleId} module={module} />)}
+        </div>
+      </div>
+    )}
+  </div>
+);
+
+// ==================== LOGIN PAGE ====================
+const LoginPage = ({ onLogin }) => {
+  const [selectedRole, setSelectedRole] = useState(null);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const roles = [
+    { id: 'garagiste', name: 'Garagiste', icon: Wrench, desc: 'Diagnostic & Signalement', gradient: 'from-blue-500 to-cyan-400' },
+    { id: 'proprietaire', name: 'Propriétaire BP', icon: Building2, desc: 'Gestion des statuts', gradient: 'from-purple-500 to-pink-400' },
+    { id: 'centre-tri', name: 'Centre de Tri', icon: Recycle, desc: 'Décision & Recyclage', gradient: 'from-green-500 to-emerald-400' }
+  ];
+
+  const handleRoleSelect = (role) => {
+    setSelectedRole(role);
+    const creds = DEMO_CREDENTIALS[role.id];
+    setUsername(creds.username);
+    setPassword(creds.password);
+  };
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    if (!selectedRole) return;
+    setLoading(true);
+    await new Promise(r => setTimeout(r, 500));
+    onLogin(selectedRole.id, username);
+    setLoading(false);
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="w-full max-w-lg">
+        <div className="text-center mb-8">
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <Battery className="w-12 h-12 text-cyan-400" />
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-white via-cyan-200 to-purple-200 bg-clip-text text-transparent">
+              Battery Passport
+            </h1>
+          </div>
+          <p className="text-gray-400 text-sm">Digital Battery Lifecycle Management</p>
+        </div>
+
+        <div className={`${styles.glassCard} p-8`}>
+          <h2 className="text-xl font-semibold mb-6 text-center">Sélectionnez votre rôle</h2>
+
+          <div className="space-y-3 mb-6">
+            {roles.map((role) => (
+              <button
+                key={role.id}
+                onClick={() => handleRoleSelect(role)}
+                className={`w-full p-4 rounded-xl border transition-all text-left ${
+                  selectedRole?.id === role.id
+                    ? 'border-white/30 bg-white/10'
+                    : 'border-white/10 bg-white/5 hover:border-white/20'
+                }`}
+              >
+                <div className="flex items-center gap-4">
+                  <div className={`p-3 rounded-lg bg-gradient-to-br ${role.gradient}`}>
+                    <role.icon className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold">{role.name}</h3>
+                    <p className="text-sm text-gray-400">{role.desc}</p>
+                  </div>
+                  {selectedRole?.id === role.id && (
+                    <div className="w-6 h-6 rounded-full bg-gradient-to-r from-green-400 to-emerald-400 flex items-center justify-center">
+                      <CheckCircle className="w-4 h-4 text-white" />
+                    </div>
+                  )}
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {selectedRole && (
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div className="h-px bg-gradient-to-r from-transparent via-white/20 to-transparent my-6" />
+              <div className="relative">
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} className={`${styles.glassInput} pl-12`} placeholder="Nom d'utilisateur" />
+              </div>
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className={`${styles.glassInput} pl-12`} placeholder="Mot de passe" />
+              </div>
+              <button type="submit" disabled={loading} className={`${styles.primaryButton} w-full py-4`}>
+                {loading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <>Se connecter <ArrowRight className="w-5 h-5" /></>}
+              </button>
+              <p className="text-center text-sm text-gray-500">Mode démo - Credentials préremplis</p>
+            </form>
+          )}
+        </div>
+        <p className="text-center text-xs text-gray-500 mt-6">Hackathon ESILV x Capgemini - Battery Passport PoC</p>
+      </div>
+    </div>
+  );
+};
+
+// ==================== GARAGISTE DASHBOARD ====================
+const GaragisteDashboard = ({ onLogout }) => {
+  const [battery, setBattery] = useState(null);
+  const [diagnostic, setDiagnostic] = useState(null);
+  const [batteryId, setBatteryId] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState(null);
+  const [reportReason, setReportReason] = useState('');
+
+  const showToast = (message, type) => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleSearch = async () => {
+    if (!batteryId.trim()) return;
+    setLoading(true);
+    try {
+      const bat = await api.getBatteryFull(batteryId);
+      const diag = await api.getDiagnostic(batteryId);
+      setBattery(bat);
+      setDiagnostic(diag);
+      if (bat.hasDefectiveModule) {
+        setReportReason(`Module(s) défaillant(s): ${bat.modules.filter(m => m.isDefective).map(m => m.moduleId).join(', ')} - Résistance interne critique`);
+      }
+      showToast('Batterie trouvée !', 'success');
+    } catch (err) {
+      showToast('Batterie non trouvée', 'error');
+    }
+    setLoading(false);
+  };
+
+  const handleReport = async () => {
+    if (!battery || !reportReason) return;
+    setLoading(true);
+    try {
+      await api.reportWaste(battery.batteryId, reportReason, 'Garage Auto Plus');
+      showToast('Notification envoyée au Propriétaire BP !', 'success');
+    } catch (err) {
+      showToast('Erreur lors de l\'envoi', 'error');
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="min-h-screen p-4">
+      {toast && <Toast {...toast} onClose={() => setToast(null)} />}
+      
+      <div className={`${styles.glassCard} p-4 mb-6`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400">
+              <Wrench className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="font-bold text-lg">Interface Garagiste</h1>
+              <p className="text-xs text-gray-400">Battery Passport</p>
+            </div>
+          </div>
+          <button onClick={onLogout} className={styles.glassButton}><LogOut className="w-5 h-5" /></button>
+        </div>
+      </div>
+
+      <div className="max-w-4xl mx-auto space-y-6">
+        {/* Scanner */}
+        <div className={`${styles.glassCard} p-6`}>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 rounded-lg bg-cyan-500/20"><QrCode className="w-5 h-5 text-cyan-400" /></div>
+            <h2 className="text-lg font-semibold">Scanner une batterie</h2>
+          </div>
+          <div className="flex gap-3">
+            <input
+              type="text"
+              value={batteryId}
+              onChange={(e) => setBatteryId(e.target.value)}
+              placeholder="BP-2024-LG-002"
+              className={`${styles.glassInput} flex-1`}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            />
+            <button onClick={handleSearch} disabled={loading} className={styles.primaryButton}>
+              {loading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <><Search className="w-5 h-5" /> Rechercher</>}
+            </button>
+          </div>
+          <div className="flex gap-2 mt-4">
+            {['BP-2024-CATL-001', 'BP-2024-LG-002', 'BP-2024-BYD-003'].map(id => (
+              <button key={id} onClick={() => { setBatteryId(id); }} className={`${styles.glassButton} text-xs`}>
+                {id}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Battery Info */}
+        {battery && (
+          <>
+            <BatteryInfoCard battery={battery} showModules />
+
+            {/* Diagnostic */}
+            {diagnostic && (
+              <div className={`${styles.glassCard} p-6`}>
+                <h3 className="font-semibold mb-4 flex items-center gap-2">
+                  <Activity className="w-5 h-5 text-cyan-400" /> Diagnostic
+                </h3>
+                <div className={`p-4 rounded-xl mb-4 ${
+                  diagnostic.diagnostic?.healthStatus === 'CRITICAL' ? 'bg-red-500/20 border border-red-500/30' :
+                  diagnostic.diagnostic?.healthStatus === 'WARNING' ? 'bg-yellow-500/20 border border-yellow-500/30' :
+                  'bg-green-500/20 border border-green-500/30'
+                }`}>
+                  <div className="flex items-center gap-3 mb-2">
+                    {diagnostic.diagnostic?.healthStatus === 'CRITICAL' ? <AlertTriangle className="w-6 h-6 text-red-400" /> : <CheckCircle className="w-6 h-6 text-green-400" />}
+                    <span className="font-bold text-lg">État: {diagnostic.diagnostic?.healthStatus}</span>
+                  </div>
+                  <p className="text-gray-300">{diagnostic.recommendation}</p>
+                </div>
+                <div className="grid grid-cols-4 gap-4">
+                  <div className="p-4 bg-white/5 rounded-xl">
+                    <Gauge className="w-8 h-8 text-cyan-400 mb-2" />
+                    <p className="text-xs text-gray-400">SOH Moyen</p>
+                    <p className="text-xl font-bold">{diagnostic.diagnostic?.avgSoh?.toFixed(1)}%</p>
+                  </div>
+                  <div className="p-4 bg-white/5 rounded-xl">
+                    <AlertTriangle className="w-8 h-8 text-red-400 mb-2" />
+                    <p className="text-xs text-gray-400">Défaillants</p>
+                    <p className="text-xl font-bold">{diagnostic.diagnostic?.defectiveModules}/{diagnostic.diagnostic?.totalModules}</p>
+                  </div>
+                  <div className="p-4 bg-white/5 rounded-xl">
+                    <Thermometer className="w-8 h-8 text-orange-400 mb-2" />
+                    <p className="text-xs text-gray-400">Temp</p>
+                    <p className="text-xl font-bold">{diagnostic.diagnostic?.avgTemperature?.toFixed(1)}°C</p>
+                  </div>
+                  <div className="p-4 bg-white/5 rounded-xl">
+                    <Zap className="w-8 h-8 text-yellow-400 mb-2" />
+                    <p className="text-xs text-gray-400">Voltage</p>
+                    <p className="text-xl font-bold">{diagnostic.diagnostic?.avgVoltage?.toFixed(2)}V</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Report Section */}
+            {battery.hasDefectiveModule && (
+              <div className={`${styles.glassCard} p-6`}>
+                <h3 className="font-semibold mb-4 flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-red-400" /> Signaler comme Waste
+                </h3>
+                <textarea
+                  value={reportReason}
+                  onChange={(e) => setReportReason(e.target.value)}
+                  placeholder="Raison du signalement..."
+                  className={`${styles.glassInput} min-h-[100px] resize-none mb-4`}
+                />
+                <button onClick={handleReport} disabled={loading} className={`${styles.dangerButton} w-full`}>
+                  {loading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <><Send className="w-5 h-5" /> Envoyer au Propriétaire BP</>}
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ==================== PROPRIETAIRE DASHBOARD ====================
+const ProprietaireDashboard = ({ onLogout }) => {
+  const [batteries, setBatteries] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [alerts, setAlerts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState(null);
+  const [selectedBattery, setSelectedBattery] = useState(null);
+
+  const showToast = (message, type) => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  useEffect(() => {
+    loadData();
+    const interval = setInterval(loadData, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const loadData = async () => {
+    try {
+      const [bats, notifs, alts] = await Promise.all([
+        api.getAllBatteries(),
+        api.getNotifications(),
+        api.getAlerts()
+      ]);
+      setBatteries(bats);
+      setNotifications(notifs);
+      setAlerts(alts);
+    } catch (err) {
+      console.error(err);
+    }
+    setLoading(false);
+  };
+
+  const handleStatusChange = async (batteryId, newStatus) => {
+    try {
+      await api.updateStatus(batteryId, newStatus);
+      showToast(`Statut changé vers ${newStatus}`, 'success');
+      loadData();
+      setSelectedBattery(null);
+    } catch (err) {
+      showToast('Erreur', 'error');
+    }
+  };
+
+  const stats = {
+    total: batteries.length,
+    original: batteries.filter(b => b.status === 'Original').length,
+    waste: batteries.filter(b => b.status === 'Waste').length,
+    reused: batteries.filter(b => b.status === 'Reused').length,
+  };
+
+  return (
+    <div className="min-h-screen p-4">
+      {toast && <Toast {...toast} onClose={() => setToast(null)} />}
+      
+      <div className={`${styles.glassCard} p-4 mb-6`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-gradient-to-br from-purple-500 to-pink-400">
+              <Building2 className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="font-bold text-lg">Propriétaire BP</h1>
+              <p className="text-xs text-gray-400">Battery Passport</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Bell className="w-6 h-6 text-white" />
+              {notifications.filter(n => !n.read).length > 0 && (
+                <span className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 rounded-full text-xs flex items-center justify-center">
+                  {notifications.filter(n => !n.read).length}
+                </span>
+              )}
+            </div>
+            <button onClick={onLogout} className={styles.glassButton}><LogOut className="w-5 h-5" /></button>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-6xl mx-auto space-y-6">
+        {/* Stats */}
+        <div className="grid grid-cols-4 gap-4">
+          <div className={`${styles.glassCard} p-4`}>
+            <Battery className="w-8 h-8 text-cyan-400 mb-2" />
+            <p className="text-2xl font-bold">{stats.total}</p>
+            <p className="text-sm text-gray-400">Total</p>
+          </div>
+          <div className={`${styles.glassCard} p-4`}>
+            <CheckCircle className="w-8 h-8 text-blue-400 mb-2" />
+            <p className="text-2xl font-bold">{stats.original}</p>
+            <p className="text-sm text-gray-400">Original</p>
+          </div>
+          <div className={`${styles.glassCard} p-4`}>
+            <AlertTriangle className="w-8 h-8 text-red-400 mb-2" />
+            <p className="text-2xl font-bold">{stats.waste}</p>
+            <p className="text-sm text-gray-400">Waste</p>
+          </div>
+          <div className={`${styles.glassCard} p-4`}>
+            <RefreshCw className="w-8 h-8 text-green-400 mb-2" />
+            <p className="text-2xl font-bold">{stats.reused}</p>
+            <p className="text-sm text-gray-400">Reused</p>
+          </div>
+        </div>
+
+        {/* Notifications */}
+        <div className={`${styles.glassCard} p-6`}>
+          <h3 className="font-semibold mb-4 flex items-center gap-2">
+            <Bell className="w-5 h-5 text-purple-400" /> Notifications ({notifications.length})
+          </h3>
+          <div className="space-y-3 max-h-[300px] overflow-y-auto">
+            {notifications.map((notif, i) => (
+              <div key={i} className={`p-4 rounded-xl border ${
+                notif.urgency === 'high' ? 'bg-red-500/10 border-red-500/30' : 'bg-white/5 border-white/10'
+              } ${!notif.read ? 'border-l-4 border-l-purple-500' : ''}`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold">{notif.batteryId}</p>
+                    <p className="text-sm text-gray-300">{notif.message}</p>
+                    <p className="text-xs text-gray-400 mt-1">De: {notif.senderRole}</p>
+                  </div>
+                  {notif.status === 'pending' && (
+                    <button 
+                      onClick={() => handleStatusChange(notif.batteryId, 'Waste')}
+                      className={`${styles.dangerButton} text-sm py-2`}
+                    >
+                      → Waste
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+            {notifications.length === 0 && <p className="text-center text-gray-400 py-8">Aucune notification</p>}
+          </div>
+        </div>
+
+        {/* Batteries */}
+        <div className={`${styles.glassCard} p-6`}>
+          <h3 className="font-semibold mb-4">Gestion des Batteries</h3>
+          <div className="space-y-3">
+            {batteries.map((bat) => (
+              <div key={bat.batteryId} className="p-4 bg-white/5 rounded-xl flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Battery className="w-5 h-5 text-cyan-400" />
+                  <div>
+                    <p className="font-semibold">{bat.batteryId}</p>
+                    <p className="text-sm text-gray-400">{bat.modelName}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <StatusBadge status={bat.status} />
+                  <select 
+                    onChange={(e) => e.target.value && handleStatusChange(bat.batteryId, e.target.value)}
+                    className={`${styles.glassInput} py-2 px-3 text-sm w-32`}
+                    defaultValue=""
+                  >
+                    <option value="">Changer</option>
+                    <option value="Original">Original</option>
+                    <option value="Waste">Waste</option>
+                    <option value="Reused">Reused</option>
+                    <option value="Repurposed">Repurposed</option>
+                  </select>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Alerts */}
+        {alerts.length > 0 && (
+          <div className={`${styles.glassCard} p-6`}>
+            <h3 className="font-semibold mb-4 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-400" /> Alertes Actives ({alerts.length})
+            </h3>
+            <div className="space-y-3">
+              {alerts.map((alert, i) => (
+                <div key={i} className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
+                  <p className="font-semibold">{alert.batteryId} - Module {alert.moduleId}</p>
+                  <p className="text-sm text-gray-300">Résistance: {alert.resistance}Ω / max {alert.maxResistance}Ω ({alert.overloadPercent}% surcharge)</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ==================== CENTRE TRI DASHBOARD ====================
+const CentreTriDashboard = ({ onLogout }) => {
+  const [battery, setBattery] = useState(null);
+  const [decision, setDecision] = useState(null);
+  const [batteryId, setBatteryId] = useState('');
+  const [marketDemand, setMarketDemand] = useState('normal');
+  const [receptionConfirmed, setReceptionConfirmed] = useState(false);
+  const [finalDecision, setFinalDecision] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState(null);
+  const [wasteBatteries, setWasteBatteries] = useState([]);
+
+  const showToast = (message, type) => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  useEffect(() => {
+    loadWasteBatteries();
+  }, []);
+
+  const loadWasteBatteries = async () => {
+    const bats = await api.getAllBatteries();
+    setWasteBatteries(bats.filter(b => b.status === 'Waste'));
+  };
+
+  const handleSearch = async () => {
+    if (!batteryId.trim()) return;
+    setLoading(true);
+    try {
+      const bat = await api.getBatteryFull(batteryId);
+      setBattery(bat);
+      setReceptionConfirmed(false);
+      setDecision(null);
+      setFinalDecision(null);
+      showToast('Batterie trouvée !', 'success');
+    } catch (err) {
+      showToast('Batterie non trouvée', 'error');
+    }
+    setLoading(false);
+  };
+
+  const handleConfirmReception = async () => {
+    setLoading(true);
+    try {
+      await api.confirmReception(battery.batteryId, 'Centre de Tri EcoRecycle');
+      setReceptionConfirmed(true);
+      showToast('Réception confirmée !', 'success');
+    } catch (err) {
+      showToast('Erreur', 'error');
+    }
+    setLoading(false);
+  };
+
+  const handleGetDecision = async () => {
+    setLoading(true);
+    try {
+      const dec = await api.getDecision(battery.batteryId, marketDemand);
+      setDecision(dec);
+      setFinalDecision(dec.recommendation);
+    } catch (err) {
+      showToast('Erreur', 'error');
+    }
+    setLoading(false);
+  };
+
+  const handleFinalDecision = async () => {
+    if (!finalDecision) return;
+    setLoading(true);
+    try {
+      const statusMap = { Recycle: 'Waste', Reuse: 'Reused', Remanufacture: 'Reused', Repurpose: 'Repurposed' };
+      await api.updateStatus(battery.batteryId, statusMap[finalDecision]);
+      showToast(`Décision validée: ${finalDecision}`, 'success');
+      setBattery(null);
+      setDecision(null);
+      setReceptionConfirmed(false);
+      loadWasteBatteries();
+    } catch (err) {
+      showToast('Erreur', 'error');
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="min-h-screen p-4">
+      {toast && <Toast {...toast} onClose={() => setToast(null)} />}
+      
+      <div className={`${styles.glassCard} p-4 mb-6`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-gradient-to-br from-green-500 to-emerald-400">
+              <Recycle className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="font-bold text-lg">Centre de Tri</h1>
+              <p className="text-xs text-gray-400">Battery Passport</p>
+            </div>
+          </div>
+          <button onClick={onLogout} className={styles.glassButton}><LogOut className="w-5 h-5" /></button>
+        </div>
+      </div>
+
+      <div className="max-w-4xl mx-auto space-y-6">
+        {/* Scanner */}
+        <div className={`${styles.glassCard} p-6`}>
+          <div className="flex items-center gap-3 mb-4">
+            <QrCode className="w-5 h-5 text-green-400" />
+            <h2 className="text-lg font-semibold">Scanner une batterie</h2>
+          </div>
+          <div className="flex gap-3">
+            <input type="text" value={batteryId} onChange={(e) => setBatteryId(e.target.value)} placeholder="BP-2024-LG-002" className={`${styles.glassInput} flex-1`} />
+            <button onClick={handleSearch} disabled={loading} className={styles.primaryButton}>
+              {loading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
+            </button>
+          </div>
+          {wasteBatteries.length > 0 && (
+            <div className="mt-4">
+              <p className="text-sm text-gray-400 mb-2">Batteries en attente ({wasteBatteries.length})</p>
+              <div className="flex flex-wrap gap-2">
+                {wasteBatteries.map(b => (
+                  <button key={b.batteryId} onClick={() => { setBatteryId(b.batteryId); handleSearch(); }} className={`${styles.glassButton} text-xs`}>
+                    {b.batteryId}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {battery && (
+          <>
+            {/* Status Check */}
+            <div className={`${styles.glassCard} p-6 ${battery.status === 'Waste' ? 'border border-green-500/30' : 'border border-yellow-500/30'}`}>
+              <div className="flex items-center gap-4">
+                {battery.status === 'Waste' ? (
+                  <>
+                    <div className="p-4 bg-green-500/20 rounded-full"><CheckCircle className="w-8 h-8 text-green-400" /></div>
+                    <div>
+                      <h3 className="text-xl font-bold text-green-400">Statut Confirmé: WASTE</h3>
+                      <p className="text-gray-300">La batterie peut être traitée</p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="p-4 bg-yellow-500/20 rounded-full"><AlertTriangle className="w-8 h-8 text-yellow-400" /></div>
+                    <div>
+                      <h3 className="text-xl font-bold text-yellow-400">Statut Incorrect: {battery.status}</h3>
+                      <p className="text-gray-300">Attendu: Waste</p>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <BatteryInfoCard battery={battery} showModules />
+
+            {battery.status === 'Waste' && !receptionConfirmed && (
+              <div className={`${styles.glassCard} p-6 text-center`}>
+                <button onClick={handleConfirmReception} disabled={loading} className={`${styles.successButton} px-8`}>
+                  {loading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <><CheckCircle className="w-5 h-5" /> Confirmer la Réception</>}
+                </button>
+              </div>
+            )}
+
+            {receptionConfirmed && !decision && (
+              <div className={`${styles.glassCard} p-6`}>
+                <div className="p-4 bg-green-500/20 border border-green-500/30 rounded-xl text-center mb-4">
+                  <CheckCircle className="w-12 h-12 text-green-400 mx-auto mb-2" />
+                  <p className="font-semibold text-green-400">Réception Confirmée</p>
+                </div>
+                <div className="mb-4">
+                  <p className="text-sm text-gray-400 mb-2">Demande du marché</p>
+                  <div className="flex gap-2">
+                    {['low', 'normal', 'high'].map(level => (
+                      <button key={level} onClick={() => setMarketDemand(level)}
+                        className={`flex-1 py-3 rounded-xl ${marketDemand === level ? 'bg-green-500/20 border border-green-500/50' : 'bg-white/5 border border-white/10'}`}>
+                        {level === 'low' ? '📉 Faible' : level === 'normal' ? '📊 Normal' : '📈 Forte'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <button onClick={handleGetDecision} disabled={loading} className={`${styles.primaryButton} w-full`}>
+                  {loading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <><Sparkles className="w-5 h-5" /> Obtenir la Recommandation</>}
+                </button>
+              </div>
+            )}
+
+            {decision && (
+              <>
+                {/* Decision Card */}
+                <div className={`${styles.glassCard} p-8 text-center bg-gradient-to-br ${
+                  decision.recommendation === 'Recycle' ? 'from-red-500/20 to-orange-500/20' :
+                  decision.recommendation === 'Reuse' ? 'from-green-500/20 to-emerald-500/20' :
+                  decision.recommendation === 'Remanufacture' ? 'from-blue-500/20 to-cyan-500/20' :
+                  'from-purple-500/20 to-pink-500/20'
+                }`}>
+                  <div className="text-6xl mb-4">
+                    {decision.recommendation === 'Recycle' ? '♻️' : decision.recommendation === 'Reuse' ? '🔄' : decision.recommendation === 'Remanufacture' ? '🔧' : '🔀'}
+                  </div>
+                  <h2 className="text-3xl font-bold mb-2">{decision.recommendation?.toUpperCase()}</h2>
+                  <p className="text-xl text-white/80">Confiance: {decision.confidence?.toFixed(0)}%</p>
+                </div>
+
+                {/* Scores */}
+                <div className={`${styles.glassCard} p-6`}>
+                  <h3 className="font-semibold mb-4">Scores Détaillés</h3>
+                  <div className="space-y-4">
+                    {Object.entries(decision.scores || {}).sort(([,a],[,b]) => b - a).map(([opt, score]) => (
+                      <div key={opt}>
+                        <div className="flex justify-between mb-1">
+                          <span className={opt === decision.recommendation ? 'text-cyan-400 font-semibold' : ''}>{opt} {opt === decision.recommendation && '★'}</span>
+                          <span className="text-gray-400">{score?.toFixed(0)}%</span>
+                        </div>
+                        <div className="h-3 bg-white/10 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full bg-gradient-to-r ${
+                            opt === 'Recycle' ? 'from-red-500 to-orange-500' :
+                            opt === 'Reuse' ? 'from-green-500 to-emerald-500' :
+                            opt === 'Remanufacture' ? 'from-blue-500 to-cyan-500' :
+                            'from-purple-500 to-pink-500'
+                          }`} style={{ width: `${score}%` }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="mt-4 text-gray-300"><strong>Justification:</strong> {decision.reasoning}</p>
+                </div>
+
+                {/* Final Decision */}
+                <div className={`${styles.glassCard} p-6`}>
+                  <h3 className="font-semibold mb-4">Décision Finale</h3>
+                  <div className="grid grid-cols-4 gap-3 mb-6">
+                    {['Recycle', 'Reuse', 'Remanufacture', 'Repurpose'].map(opt => (
+                      <button key={opt} onClick={() => setFinalDecision(opt)}
+                        className={`p-4 rounded-xl border text-center ${
+                          finalDecision === opt ? 'border-green-500 bg-green-500/20' :
+                          opt === decision.recommendation ? 'border-cyan-500/50 bg-cyan-500/10' :
+                          'border-white/10 bg-white/5'
+                        }`}>
+                        <span className="text-2xl block mb-2">
+                          {opt === 'Recycle' ? '♻️' : opt === 'Reuse' ? '🔄' : opt === 'Remanufacture' ? '🔧' : '🔀'}
+                        </span>
+                        <span className="text-sm font-semibold">{opt}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <button onClick={handleFinalDecision} disabled={!finalDecision || loading} className={`${styles.successButton} w-full`}>
+                    {loading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <><CheckCircle className="w-5 h-5" /> Confirmer: {finalDecision || '...'}</>}
+                  </button>
+                </div>
+              </>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ==================== MAIN APP ====================
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [role, setRole] = useState(null);
+
+  const handleLogin = (role, username) => {
+    setUser(username);
+    setRole(role);
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    setRole(null);
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-900 text-white">
+      {/* Animated Background */}
+      <div className="fixed inset-0 z-0 overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-full">
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-pulse" />
+          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-cyan-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+          <div className="absolute top-1/2 left-1/2 w-64 h-64 bg-pink-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }} />
+        </div>
+      </div>
+      
+      <div className="relative z-10">
+        {!user && <LoginPage onLogin={handleLogin} />}
+        {user && role === 'garagiste' && <GaragisteDashboard onLogout={handleLogout} />}
+        {user && role === 'proprietaire' && <ProprietaireDashboard onLogout={handleLogout} />}
+        {user && role === 'centre-tri' && <CentreTriDashboard onLogout={handleLogout} />}
+      </div>
+    </div>
+  );
+}
