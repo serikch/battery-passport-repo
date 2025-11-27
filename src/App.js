@@ -1,6 +1,5 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from './store';
 
 // Pages
@@ -27,65 +26,49 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 function App() {
   return (
     <Router>
-      <div className="animated-bg" />
-      <Toaster 
-        position="top-right"
-        toastOptions={{
-          duration: 4000,
-          style: {
-            background: 'rgba(30, 41, 59, 0.95)',
-            color: '#f8fafc',
-            backdropFilter: 'blur(10px)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: '12px',
-            padding: '16px'
-          },
-          success: {
-            iconTheme: {
-              primary: '#10b981',
-              secondary: '#f8fafc'
-            }
-          },
-          error: {
-            iconTheme: {
-              primary: '#ef4444',
-              secondary: '#f8fafc'
-            }
-          }
-        }}
-      />
-      <Routes>
-        <Route path="/" element={<LoginPage />} />
-        
-        <Route 
-          path="/garagiste/*" 
-          element={
-            <ProtectedRoute allowedRoles={['garagiste']}>
-              <GaragisteDashboard />
-            </ProtectedRoute>
-          } 
-        />
-        
-        <Route 
-          path="/proprietaire/*" 
-          element={
-            <ProtectedRoute allowedRoles={['proprietaire']}>
-              <ProprietaireDashboard />
-            </ProtectedRoute>
-          } 
-        />
-        
-        <Route 
-          path="/centre-tri/*" 
-          element={
-            <ProtectedRoute allowedRoles={['centre-tri']}>
-              <CentreTriDashboard />
-            </ProtectedRoute>
-          } 
-        />
-        
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      {/* Animated Background */}
+      <div className="fixed inset-0 z-0 overflow-hidden bg-slate-900">
+        <div className="absolute top-0 left-0 w-full h-full">
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-pulse" />
+          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-cyan-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+          <div className="absolute top-1/2 left-1/2 w-64 h-64 bg-pink-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }} />
+        </div>
+      </div>
+      
+      <div className="relative z-10 min-h-screen text-white">
+        <Routes>
+          <Route path="/" element={<LoginPage />} />
+          
+          <Route 
+            path="/garagiste/*" 
+            element={
+              <ProtectedRoute allowedRoles={['garagiste']}>
+                <GaragisteDashboard />
+              </ProtectedRoute>
+            } 
+          />
+          
+          <Route 
+            path="/proprietaire/*" 
+            element={
+              <ProtectedRoute allowedRoles={['proprietaire']}>
+                <ProprietaireDashboard />
+              </ProtectedRoute>
+            } 
+          />
+          
+          <Route 
+            path="/centre-tri/*" 
+            element={
+              <ProtectedRoute allowedRoles={['centre-tri']}>
+                <CentreTriDashboard />
+              </ProtectedRoute>
+            } 
+          />
+          
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </div>
     </Router>
   );
 }

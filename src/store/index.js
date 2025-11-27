@@ -4,7 +4,7 @@ import api from '../services/api';
 
 export const useAuthStore = create(
   persist(
-    (set, get) => ({
+    (set) => ({
       user: null,
       role: null,
       isAuthenticated: false,
@@ -34,22 +34,19 @@ export const useAuthStore = create(
 export const useBatteryStore = create((set, get) => ({
   currentBattery: null,
   batteries: [],
-  modules: [],
   diagnostic: null,
   loading: false,
   error: null,
 
-  setCurrentBattery: (battery) => set({ currentBattery: battery }),
-  
   fetchBattery: async (batteryId) => {
     set({ loading: true, error: null });
     try {
-      const response = await api.getBatteryFull(batteryId);
-      set({ currentBattery: response.data, loading: false });
-      return response.data;
+      const data = await api.getBatteryFull(batteryId);
+      set({ currentBattery: data, loading: false });
+      return data;
     } catch (error) {
       set({ 
-        error: error.response?.data?.detail || 'Battery not found', 
+        error: error.message || 'Battery not found', 
         loading: false,
         currentBattery: null 
       });
@@ -57,12 +54,12 @@ export const useBatteryStore = create((set, get) => ({
     }
   },
 
-  fetchAllBatteries: async () => {
+  fetchAllBatteries: async (status = null) => {
     set({ loading: true, error: null });
     try {
-      const response = await api.getAllBatteries();
-      set({ batteries: response.data, loading: false });
-      return response.data;
+      const data = await api.getAllBatteries(status);
+      set({ batteries: data, loading: false });
+      return data;
     } catch (error) {
       set({ error: 'Failed to fetch batteries', loading: false });
       throw error;
@@ -72,9 +69,9 @@ export const useBatteryStore = create((set, get) => ({
   fetchDiagnostic: async (batteryId) => {
     set({ loading: true, error: null });
     try {
-      const response = await api.getDiagnostic(batteryId);
-      set({ diagnostic: response.data, loading: false });
-      return response.data;
+      const data = await api.getDiagnostic(batteryId);
+      set({ diagnostic: data, loading: false });
+      return data;
     } catch (error) {
       set({ error: 'Failed to fetch diagnostic', loading: false });
       throw error;
@@ -84,18 +81,16 @@ export const useBatteryStore = create((set, get) => ({
   updateStatus: async (batteryId, newStatus, reason = '') => {
     set({ loading: true, error: null });
     try {
-      const response = await api.updateBatteryStatus(batteryId, newStatus, reason);
-      // Refresh battery data
+      await api.updateBatteryStatus(batteryId, newStatus, reason);
       await get().fetchBattery(batteryId);
       set({ loading: false });
-      return response.data;
     } catch (error) {
       set({ error: 'Failed to update status', loading: false });
       throw error;
     }
   },
 
-  clearBattery: () => set({ currentBattery: null, diagnostic: null, modules: [], error: null })
+  clearBattery: () => set({ currentBattery: null, diagnostic: null, error: null })
 }));
 
 export const useNotificationStore = create((set, get) => ({
@@ -106,23 +101,26 @@ export const useNotificationStore = create((set, get) => ({
   fetchNotifications: async (unreadOnly = false) => {
     set({ loading: true });
     try {
-      const response = await api.getNotifications(unreadOnly);
-      set({ notifications: response.data, loading: false });
-      return response.data;
+      const data = await api.getNotifications(unreadOnly);
+      // Ensure data is an array
+      const notifs = Array.isArray(data) ? data : [];
+      set({ notifications: notifs, loading: false });
+      return notifs;
     } catch (error) {
-      set({ loading: false });
       console.error('Failed to fetch notifications:', error);
+      set({ notifications: [], loading: false });
       return [];
     }
   },
 
   fetchUnreadCount: async () => {
     try {
-      const response = await api.getUnreadCount();
-      set({ unreadCount: response.data.unreadCount || 0 });
-      return response.data.unreadCount;
+      const data = await api.getUnreadCount();
+      set({ unreadCount: data?.unreadCount || 0 });
+      return data?.unreadCount || 0;
     } catch (error) {
       console.error('Failed to fetch unread count:', error);
+      set({ unreadCount: 0 });
       return 0;
     }
   },
@@ -130,7 +128,6 @@ export const useNotificationStore = create((set, get) => ({
   markAsRead: async (notificationId) => {
     try {
       await api.markAsRead(notificationId);
-      // Refresh notifications
       await get().fetchNotifications();
       await get().fetchUnreadCount();
     } catch (error) {
@@ -138,23 +135,11 @@ export const useNotificationStore = create((set, get) => ({
     }
   },
 
-  createNotification: async (data) => {
-    try {
-      const response = await api.createNotification(data);
-      await get().fetchNotifications();
-      return response.data;
-    } catch (error) {
-      console.error('Failed to create notification:', error);
-      throw error;
-    }
-  },
-
   processNotification: async (notificationId, newStatus) => {
     try {
-      const response = await api.processNotification(notificationId, newStatus);
+      await api.processNotification(notificationId, newStatus);
       await get().fetchNotifications();
       await get().fetchUnreadCount();
-      return response.data;
     } catch (error) {
       console.error('Failed to process notification:', error);
       throw error;
@@ -163,8 +148,8 @@ export const useNotificationStore = create((set, get) => ({
 
   reportWaste: async (batteryId, reason, garageName) => {
     try {
-      const response = await api.reportWaste(batteryId, reason, garageName);
-      return response.data;
+      const data = await api.reportWaste(batteryId, reason, garageName);
+      return data;
     } catch (error) {
       console.error('Failed to report waste:', error);
       throw error;
@@ -179,25 +164,40 @@ export const useDecisionStore = create((set) => ({
   getDecision: async (batteryId, marketDemand = 'normal') => {
     set({ loading: true });
     try {
-      const response = await api.getDecision(batteryId, marketDemand);
-      set({ decision: response.data, loading: false });
-      return response.data;
+      const data = await api.getDecision(batteryId, marketDemand);
+      set({ decision: data, loading: false });
+      return data;
     } catch (error) {
       set({ loading: false });
-      console.error('Failed to get decision:', error);
       throw error;
     }
   },
 
   confirmReception: async (batteryId, centerName) => {
     try {
-      const response = await api.confirmReception(batteryId, centerName);
-      return response.data;
+      return await api.confirmReception(batteryId, centerName);
     } catch (error) {
-      console.error('Failed to confirm reception:', error);
       throw error;
     }
   },
 
   clearDecision: () => set({ decision: null })
+}));
+
+export const useAlertStore = create((set) => ({
+  alerts: [],
+  loading: false,
+
+  fetchAlerts: async () => {
+    set({ loading: true });
+    try {
+      const data = await api.getAlerts();
+      set({ alerts: Array.isArray(data) ? data : [], loading: false });
+      return data;
+    } catch (error) {
+      console.error('Failed to fetch alerts:', error);
+      set({ alerts: [], loading: false });
+      return [];
+    }
+  }
 }));

@@ -1,145 +1,114 @@
-import axios from 'axios';
-
-// Configuration de l'URL de l'API
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://battery-passport-api.onrender.com';
 
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 30000,
-  headers: {
-    'Content-Type': 'application/json'
+const api = {
+  // ==================== BATTERIES ====================
+  async getAllBatteries(status = null) {
+    const params = status ? `?status=${status}` : '';
+    const res = await fetch(`${API_BASE_URL}/battery/${params}`);
+    if (!res.ok) throw new Error('Failed to fetch batteries');
+    return res.json();
+  },
+
+  async getBattery(batteryId) {
+    const res = await fetch(`${API_BASE_URL}/battery/${batteryId}`);
+    if (!res.ok) throw new Error('Battery not found');
+    return res.json();
+  },
+
+  async getBatteryFull(batteryId) {
+    const res = await fetch(`${API_BASE_URL}/battery/${batteryId}/full`);
+    if (!res.ok) throw new Error('Battery not found');
+    return res.json();
+  },
+
+  async updateBatteryStatus(batteryId, newStatus, reason = '') {
+    const res = await fetch(`${API_BASE_URL}/battery/${batteryId}/status`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ newStatus, reason })
+    });
+    if (!res.ok) throw new Error('Failed to update status');
+    return res.json();
+  },
+
+  getQRCode(batteryId, size = 10) {
+    return `${API_BASE_URL}/battery/${batteryId}/qrcode?size=${size}`;
+  },
+
+  // ==================== MODULES ====================
+  async getDiagnostic(batteryId) {
+    const res = await fetch(`${API_BASE_URL}/modules/battery/${batteryId}/diagnostic`);
+    if (!res.ok) throw new Error('Failed to fetch diagnostic');
+    return res.json();
+  },
+
+  async getAlerts() {
+    const res = await fetch(`${API_BASE_URL}/modules/alerts`);
+    if (!res.ok) throw new Error('Failed to fetch alerts');
+    return res.json();
+  },
+
+  async getDecision(batteryId, marketDemand = 'normal') {
+    const res = await fetch(`${API_BASE_URL}/modules/battery/${batteryId}/decision?market_demand=${marketDemand}`, {
+      method: 'POST'
+    });
+    if (!res.ok) throw new Error('Failed to get decision');
+    return res.json();
+  },
+
+  // ==================== NOTIFICATIONS ====================
+  async getNotifications(unreadOnly = false) {
+    const params = unreadOnly ? '?unread_only=true' : '';
+    const res = await fetch(`${API_BASE_URL}/notifications/${params}`);
+    if (!res.ok) throw new Error('Failed to fetch notifications');
+    return res.json();
+  },
+
+  async getUnreadCount() {
+    const res = await fetch(`${API_BASE_URL}/notifications/unread/count`);
+    if (!res.ok) throw new Error('Failed to fetch unread count');
+    return res.json();
+  },
+
+  async markAsRead(notificationId) {
+    const res = await fetch(`${API_BASE_URL}/notifications/${notificationId}/read`, {
+      method: 'PUT'
+    });
+    if (!res.ok) throw new Error('Failed to mark as read');
+    return res.json();
+  },
+
+  async processNotification(notificationId, newStatus) {
+    const res = await fetch(`${API_BASE_URL}/notifications/${notificationId}/process`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ newStatus })
+    });
+    if (!res.ok) throw new Error('Failed to process notification');
+    return res.json();
+  },
+
+  async reportWaste(batteryId, reason, garageName) {
+    const res = await fetch(`${API_BASE_URL}/notifications/report-waste/${batteryId}?reason=${encodeURIComponent(reason)}&garage_name=${encodeURIComponent(garageName)}`, {
+      method: 'POST'
+    });
+    if (!res.ok) throw new Error('Failed to report waste');
+    return res.json();
+  },
+
+  async confirmReception(batteryId, centerName) {
+    const res = await fetch(`${API_BASE_URL}/notifications/confirm-reception/${batteryId}?center_name=${encodeURIComponent(centerName)}`, {
+      method: 'POST'
+    });
+    if (!res.ok) throw new Error('Failed to confirm reception');
+    return res.json();
+  },
+
+  async getBatteryHistory(batteryId) {
+    const res = await fetch(`${API_BASE_URL}/notifications/history/${batteryId}`);
+    if (!res.ok) throw new Error('Failed to fetch history');
+    return res.json();
   }
-});
-
-// Intercepteur pour les erreurs
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    console.error('API Error:', error.response?.data || error.message);
-    return Promise.reject(error);
-  }
-);
-
-// ==================== BATTERIES ====================
-export const getAllBatteries = (status = null) => {
-  const params = status ? { status } : {};
-  return api.get('/battery/', { params });
 };
 
-export const getBattery = (batteryId) => {
-  return api.get(`/battery/${batteryId}`);
-};
-
-export const getBatteryFull = (batteryId) => {
-  return api.get(`/battery/${batteryId}/full`);
-};
-
-export const updateBatteryStatus = (batteryId, newStatus, reason = '') => {
-  return api.put(`/battery/${batteryId}/status`, {
-    newStatus,
-    reason
-  });
-};
-
-export const getDefectiveBatteries = () => {
-  return api.get('/battery/defective/list');
-};
-
-export const getQRCode = (batteryId, size = 10) => {
-  return `${API_BASE_URL}/battery/${batteryId}/qrcode?size=${size}`;
-};
-
-// ==================== MODULES ====================
-export const getModules = (batteryId) => {
-  return api.get(`/modules/battery/${batteryId}`);
-};
-
-export const getDefectiveModules = (batteryId) => {
-  return api.get(`/modules/battery/${batteryId}/defective`);
-};
-
-export const getDiagnostic = (batteryId) => {
-  return api.get(`/modules/battery/${batteryId}/diagnostic`);
-};
-
-export const getAlerts = () => {
-  return api.get('/modules/alerts');
-};
-
-export const sendTelemetry = (data) => {
-  return api.post('/modules/telemetry', data);
-};
-
-export const getDecision = (batteryId, marketDemand = 'normal') => {
-  return api.post(`/modules/battery/${batteryId}/decision`, null, {
-    params: { market_demand: marketDemand }
-  });
-};
-
-// ==================== NOTIFICATIONS ====================
-export const getNotifications = (unreadOnly = false, batteryId = null, urgency = null) => {
-  const params = {
-    unread_only: unreadOnly,
-    ...(batteryId && { battery_id: batteryId }),
-    ...(urgency && { urgency })
-  };
-  return api.get('/notifications/', { params });
-};
-
-export const getUnreadCount = () => {
-  return api.get('/notifications/unread/count');
-};
-
-export const createNotification = (data) => {
-  return api.post('/notifications/', data);
-};
-
-export const markAsRead = (notificationId) => {
-  return api.put(`/notifications/${notificationId}/read`);
-};
-
-export const processNotification = (notificationId, newStatus) => {
-  return api.put(`/notifications/${notificationId}/process`, {
-    newStatus
-  });
-};
-
-export const reportWaste = (batteryId, reason, garageName) => {
-  return api.post(`/notifications/report-waste/${batteryId}`, null, {
-    params: { reason, garage_name: garageName }
-  });
-};
-
-export const confirmReception = (batteryId, centerName) => {
-  return api.post(`/notifications/confirm-reception/${batteryId}`, null, {
-    params: { center_name: centerName }
-  });
-};
-
-export const getBatteryHistory = (batteryId) => {
-  return api.get(`/notifications/history/${batteryId}`);
-};
-
-// Export default avec toutes les méthodes
-export default {
-  getAllBatteries,
-  getBattery,
-  getBatteryFull,
-  updateBatteryStatus,
-  getDefectiveBatteries,
-  getQRCode,
-  getModules,
-  getDefectiveModules,
-  getDiagnostic,
-  getAlerts,
-  sendTelemetry,
-  getDecision,
-  getNotifications,
-  getUnreadCount,
-  createNotification,
-  markAsRead,
-  processNotification,
-  reportWaste,
-  confirmReception,
-  getBatteryHistory
-};
+export default api;

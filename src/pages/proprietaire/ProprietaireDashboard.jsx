@@ -1,566 +1,406 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Building2, 
-  Bell, 
-  Battery as BatteryIcon,
-  AlertTriangle,
-  CheckCircle,
-  Clock,
-  ArrowRight,
-  RefreshCw,
-  Filter,
-  LayoutDashboard,
-  List,
-  X
+  Building2, Battery, Bell, LogOut, RefreshCw, CheckCircle, 
+  AlertTriangle, Clock, Mail, Filter, LayoutDashboard, List,
+  TrendingUp, Package, Activity, Eye
 } from 'lucide-react';
-import toast from 'react-hot-toast';
-import DashboardLayout, { BatteryScanner, BatteryInfoCard } from '../../components/DashboardLayout';
-import { useBatteryStore, useNotificationStore } from '../../store';
+import { useAuthStore, useBatteryStore, useNotificationStore, useAlertStore } from '../../store';
 import api from '../../services/api';
-import { formatDistanceToNow } from 'date-fns';
-import { fr } from 'date-fns/locale';
+
+// Styles
+const styles = {
+  glassCard: "bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl shadow-xl",
+  glassButton: "px-4 py-2 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl text-white font-medium transition-all hover:bg-white/10 hover:border-white/20 flex items-center justify-center gap-2",
+  glassInput: "w-full px-4 py-3 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 transition-all",
+  primaryButton: "px-6 py-3 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-xl text-white font-semibold transition-all hover:shadow-lg hover:shadow-purple-500/25 flex items-center justify-center gap-2",
+  dangerButton: "px-6 py-3 bg-gradient-to-r from-red-500 to-orange-500 rounded-xl text-white font-semibold transition-all hover:shadow-lg hover:shadow-red-500/25 flex items-center justify-center gap-2",
+  successButton: "px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl text-white font-semibold transition-all hover:shadow-lg hover:shadow-green-500/25 flex items-center justify-center gap-2",
+};
+
+// Status Badge Component
+const StatusBadge = ({ status }) => {
+  const colors = {
+    Original: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+    Waste: 'bg-red-500/20 text-red-400 border-red-500/30',
+    Reused: 'bg-green-500/20 text-green-400 border-green-500/30',
+    Repurposed: 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+  };
+  return (
+    <span className={`px-3 py-1 rounded-full text-xs font-bold border ${colors[status] || colors.Original}`}>
+      {status}
+    </span>
+  );
+};
+
+// Toast Component
+const Toast = ({ message, type, onClose }) => (
+  <div className={`fixed top-4 right-4 z-50 px-6 py-4 rounded-xl backdrop-blur-xl border ${
+    type === 'success' ? 'bg-green-500/20 border-green-500/30 text-green-400' :
+    type === 'error' ? 'bg-red-500/20 border-red-500/30 text-red-400' :
+    'bg-white/10 border-white/20 text-white'
+  } animate-pulse`}>
+    <div className="flex items-center gap-3">
+      {type === 'success' && <CheckCircle className="w-5 h-5" />}
+      {type === 'error' && <AlertTriangle className="w-5 h-5" />}
+      <span>{message}</span>
+      <button onClick={onClose} className="ml-2 hover:opacity-70">×</button>
+    </div>
+  </div>
+);
 
 const ProprietaireDashboard = () => {
+  const { logout } = useAuthStore();
+  const { batteries, fetchAllBatteries, updateStatus } = useBatteryStore();
+  const { notifications, unreadCount, fetchNotifications, fetchUnreadCount, processNotification } = useNotificationStore();
+  const { alerts, fetchAlerts } = useAlertStore();
+  
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [batteries, setBatteries] = useState([]);
-  const [alerts, setAlerts] = useState([]);
-  const [selectedNotification, setSelectedNotification] = useState(null);
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState(null);
+  const [filterStatus, setFilterStatus] = useState('all');
 
-  const { currentBattery, fetchBattery, clearBattery, updateStatus, loading } = useBatteryStore();
-  const { 
-    notifications, 
-    unreadCount, 
-    fetchNotifications, 
-    fetchUnreadCount,
-    markAsRead,
-    processNotification 
-  } = useNotificationStore();
+  const showToast = (message, type) => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(() => {
-      fetchNotifications();
-      fetchUnreadCount();
-    }, 15000);
+    const interval = setInterval(loadData, 30000); // Refresh every 30 seconds
     return () => clearInterval(interval);
   }, []);
 
   const loadData = async () => {
+    setLoading(true);
     try {
-      const [batteriesRes, alertsRes] = await Promise.all([
-        api.getAllBatteries(),
-        api.getAlerts()
+      await Promise.all([
+        fetchAllBatteries(),
+        fetchNotifications(),
+        fetchUnreadCount(),
+        fetchAlerts()
       ]);
-      setBatteries(batteriesRes.data);
-      setAlerts(alertsRes.data);
-      await fetchNotifications();
-      await fetchUnreadCount();
     } catch (err) {
       console.error('Error loading data:', err);
     }
-  };
-
-  const handleBatteryFound = async (batteryId) => {
-    try {
-      await fetchBattery(batteryId);
-      setActiveTab('battery');
-      toast.success('Batterie trouvée !');
-    } catch (err) {
-      toast.error('Batterie non trouvée');
-    }
+    setLoading(false);
   };
 
   const handleStatusChange = async (batteryId, newStatus) => {
     try {
       await updateStatus(batteryId, newStatus);
+      showToast(`Statut changé vers ${newStatus}`, 'success');
       await loadData();
-      toast.success(`Statut changé vers ${newStatus}`);
     } catch (err) {
-      toast.error('Erreur lors du changement de statut');
+      showToast('Erreur lors du changement de statut', 'error');
     }
   };
 
   const handleProcessNotification = async (notificationId, newStatus) => {
-    setIsProcessing(true);
     try {
       await processNotification(notificationId, newStatus);
+      showToast(`Notification traitée - Statut: ${newStatus}`, 'success');
       await loadData();
-      setSelectedNotification(null);
-      toast.success('Notification traitée avec succès');
     } catch (err) {
-      toast.error('Erreur lors du traitement');
+      showToast('Erreur lors du traitement', 'error');
     }
-    setIsProcessing(false);
   };
 
-  const navItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', active: activeTab === 'dashboard', onClick: () => setActiveTab('dashboard') },
-    { icon: Bell, label: `Notifications ${unreadCount > 0 ? `(${unreadCount})` : ''}`, active: activeTab === 'notifications', onClick: () => setActiveTab('notifications') },
-    { icon: List, label: 'Batteries', active: activeTab === 'batteries', onClick: () => setActiveTab('batteries') }
-  ];
-
-  const filteredBatteries = statusFilter === 'all' 
-    ? batteries 
-    : batteries.filter(b => b.status === statusFilter);
-
+  // Statistics
   const stats = {
     total: batteries.length,
     original: batteries.filter(b => b.status === 'Original').length,
     waste: batteries.filter(b => b.status === 'Waste').length,
     reused: batteries.filter(b => b.status === 'Reused').length,
-    repurposed: batteries.filter(b => b.status === 'Repurposed').length
+    repurposed: batteries.filter(b => b.status === 'Repurposed').length,
   };
 
+  // Filter notifications
+  const pendingNotifications = notifications.filter(n => n.status === 'pending' || !n.read);
+  const allNotifications = notifications;
+
   return (
-    <DashboardLayout
-      title="Propriétaire BP"
-      icon={Building2}
-      gradient="from-purple-500 to-pink-400"
-      navItems={navItems}
-      showNotifications
-    >
+    <div className="min-h-screen p-4">
+      {toast && <Toast {...toast} onClose={() => setToast(null)} />}
+      
+      {/* Header */}
+      <div className={`${styles.glassCard} p-4 mb-6`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-gradient-to-br from-purple-500 to-pink-400">
+              <Building2 className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="font-bold text-lg">Propriétaire Battery Passport</h1>
+              <p className="text-xs text-gray-400">Gestion des statuts et notifications</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setActiveTab('notifications')} 
+              className={`relative ${styles.glassButton}`}
+            >
+              <Bell className="w-5 h-5" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 rounded-full text-xs flex items-center justify-center animate-pulse">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+            <button onClick={loadData} className={styles.glassButton}>
+              <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+            <button onClick={logout} className={styles.glassButton}>
+              <LogOut className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Navigation Tabs */}
+      <div className="flex gap-2 mb-6">
+        {[
+          { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+          { id: 'notifications', icon: Bell, label: `Notifications (${pendingNotifications.length})` },
+          { id: 'batteries', icon: Battery, label: 'Batteries' },
+          { id: 'alerts', icon: AlertTriangle, label: `Alertes (${alerts.length})` }
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`${styles.glassButton} ${activeTab === tab.id ? 'bg-purple-500/20 border-purple-500/50' : ''}`}
+          >
+            <tab.icon className="w-4 h-4" />
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       <div className="max-w-7xl mx-auto">
         {/* Dashboard Tab */}
         {activeTab === 'dashboard' && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="space-y-6"
-          >
-            {/* Stats Grid */}
+          <div className="space-y-6">
+            {/* Stats Cards */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              <StatCard label="Total" value={stats.total} icon={BatteryIcon} color="cyan" />
-              <StatCard label="Original" value={stats.original} icon={CheckCircle} color="blue" />
-              <StatCard label="Waste" value={stats.waste} icon={AlertTriangle} color="red" />
-              <StatCard label="Reused" value={stats.reused} icon={RefreshCw} color="green" />
-              <StatCard label="Repurposed" value={stats.repurposed} icon={ArrowRight} color="purple" />
+              <div className={`${styles.glassCard} p-4`}>
+                <Battery className="w-8 h-8 text-cyan-400 mb-2" />
+                <p className="text-2xl font-bold">{stats.total}</p>
+                <p className="text-sm text-gray-400">Total</p>
+              </div>
+              <div className={`${styles.glassCard} p-4`}>
+                <CheckCircle className="w-8 h-8 text-blue-400 mb-2" />
+                <p className="text-2xl font-bold">{stats.original}</p>
+                <p className="text-sm text-gray-400">Original</p>
+              </div>
+              <div className={`${styles.glassCard} p-4`}>
+                <AlertTriangle className="w-8 h-8 text-red-400 mb-2" />
+                <p className="text-2xl font-bold">{stats.waste}</p>
+                <p className="text-sm text-gray-400">Waste</p>
+              </div>
+              <div className={`${styles.glassCard} p-4`}>
+                <RefreshCw className="w-8 h-8 text-green-400 mb-2" />
+                <p className="text-2xl font-bold">{stats.reused}</p>
+                <p className="text-sm text-gray-400">Reused</p>
+              </div>
+              <div className={`${styles.glassCard} p-4`}>
+                <TrendingUp className="w-8 h-8 text-purple-400 mb-2" />
+                <p className="text-2xl font-bold">{stats.repurposed}</p>
+                <p className="text-sm text-gray-400">Repurposed</p>
+              </div>
             </div>
 
-            {/* Scanner */}
-            <BatteryScanner onBatteryFound={handleBatteryFound} />
-
-            {/* Recent Alerts */}
-            <div className="glass-card p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5 text-red-400" />
-                  Alertes Actives ({alerts.length})
+            {/* Recent Notifications Preview */}
+            {pendingNotifications.length > 0 && (
+              <div className={`${styles.glassCard} p-6`}>
+                <h3 className="font-semibold mb-4 flex items-center gap-2">
+                  <Bell className="w-5 h-5 text-purple-400" />
+                  Notifications en attente ({pendingNotifications.length})
                 </h3>
-                <button onClick={loadData} className="glass-button p-2">
-                  <RefreshCw className="w-4 h-4" />
-                </button>
-              </div>
-
-              {alerts.length > 0 ? (
-                <div className="space-y-3 max-h-[300px] overflow-y-auto">
-                  {alerts.map((alert, index) => (
-                    <motion.div
-                      key={`${alert.batteryId}-${alert.moduleId}`}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: index * 0.1 }}
-                      className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl"
-                    >
+                <div className="space-y-3">
+                  {pendingNotifications.slice(0, 3).map((notif, i) => (
+                    <div key={i} className={`p-4 rounded-xl border ${
+                      notif.urgency === 'high' ? 'bg-red-500/10 border-red-500/30' : 'bg-white/5 border-white/10'
+                    } ${!notif.read ? 'border-l-4 border-l-purple-500' : ''}`}>
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="font-semibold">{alert.batteryId}</p>
-                          <p className="text-sm text-slate-400">
-                            Module {alert.moduleId}: {alert.resistance}Ω / max {alert.maxResistance}Ω
-                          </p>
+                          <p className="font-semibold">{notif.batteryId}</p>
+                          <p className="text-sm text-gray-300">{notif.message}</p>
+                          <p className="text-xs text-gray-400 mt-1">De: {notif.senderRole} • {notif.timestamp}</p>
                         </div>
-                        <span className="px-3 py-1 bg-red-500/20 text-red-400 text-sm rounded-full">
-                          {alert.overloadPercent}% surcharge
-                        </span>
+                        {notif.status === 'pending' && (
+                          <button 
+                            onClick={() => handleProcessNotification(notif.id, 'Waste')}
+                            className={`${styles.dangerButton} text-sm py-2`}
+                          >
+                            → Waste
+                          </button>
+                        )}
                       </div>
-                    </motion.div>
+                    </div>
                   ))}
                 </div>
-              ) : (
-                <p className="text-center text-slate-400 py-8">
-                  ✅ Aucune alerte active
-                </p>
-              )}
-            </div>
-
-            {/* Recent Notifications */}
-            <div className="glass-card p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <Bell className="w-5 h-5 text-purple-400" />
-                  Notifications Récentes
-                </h3>
-                <button 
-                  onClick={() => setActiveTab('notifications')}
-                  className="text-sm text-purple-400 hover:text-purple-300"
-                >
-                  Voir tout
-                </button>
+                {pendingNotifications.length > 3 && (
+                  <button 
+                    onClick={() => setActiveTab('notifications')}
+                    className={`${styles.glassButton} w-full mt-4`}
+                  >
+                    Voir toutes les notifications
+                  </button>
+                )}
               </div>
-
-              {notifications.slice(0, 3).map((notif, index) => (
-                <NotificationItem 
-                  key={notif.notificationId || index} 
-                  notification={notif}
-                  onClick={() => {
-                    setSelectedNotification(notif);
-                    setActiveTab('notifications');
-                  }}
-                />
-              ))}
-
-              {notifications.length === 0 && (
-                <p className="text-center text-slate-400 py-8">
-                  Aucune notification
-                </p>
-              )}
-            </div>
-          </motion.div>
+            )}
+          </div>
         )}
 
         {/* Notifications Tab */}
         {activeTab === 'notifications' && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="space-y-6"
-          >
-            <div className="glass-card p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="font-semibold text-lg">Notifications</h3>
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => fetchNotifications(true)}
-                    className="glass-button text-sm"
-                  >
-                    Non lues uniquement
-                  </button>
-                  <button 
-                    onClick={() => fetchNotifications(false)}
-                    className="glass-button text-sm"
-                  >
-                    Toutes
-                  </button>
+          <div className={`${styles.glassCard} p-6`}>
+            <h3 className="font-semibold mb-4 flex items-center gap-2">
+              <Bell className="w-5 h-5 text-purple-400" />
+              Toutes les Notifications ({allNotifications.length})
+            </h3>
+            <div className="space-y-3 max-h-[600px] overflow-y-auto">
+              {allNotifications.length > 0 ? (
+                allNotifications.map((notif, i) => (
+                  <div key={i} className={`p-4 rounded-xl border transition-all ${
+                    notif.urgency === 'high' ? 'bg-red-500/10 border-red-500/30' : 'bg-white/5 border-white/10'
+                  } ${!notif.read ? 'border-l-4 border-l-purple-500' : ''}`}>
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-semibold text-lg">{notif.batteryId}</span>
+                          {notif.urgency === 'high' && (
+                            <span className="px-2 py-0.5 bg-red-500/20 text-red-400 text-xs rounded-full">Urgent</span>
+                          )}
+                          {notif.status === 'pending' && (
+                            <span className="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded-full">En attente</span>
+                          )}
+                          {notif.status === 'processed' && (
+                            <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded-full">Traité</span>
+                          )}
+                        </div>
+                        <p className="text-gray-300 mb-2">{notif.message}</p>
+                        <div className="flex items-center gap-4 text-xs text-gray-400">
+                          <span className="flex items-center gap-1">
+                            <Mail className="w-3 h-3" />
+                            {notif.senderRole}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {notif.timestamp || 'Récent'}
+                          </span>
+                        </div>
+                      </div>
+                      {notif.status === 'pending' && (
+                        <div className="flex flex-col gap-2">
+                          <button 
+                            onClick={() => handleProcessNotification(notif.id, 'Waste')}
+                            className={`${styles.dangerButton} text-sm py-2 px-4`}
+                          >
+                            Valider → Waste
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-12">
+                  <Bell className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+                  <p className="text-gray-400 text-lg">Aucune notification</p>
+                  <p className="text-gray-500 text-sm">Les notifications des garagistes apparaîtront ici</p>
                 </div>
-              </div>
-
-              <div className="space-y-3">
-                {notifications.map((notif, index) => (
-                  <NotificationItem 
-                    key={notif.notificationId || index} 
-                    notification={notif}
-                    expanded
-                    onClick={() => setSelectedNotification(notif)}
-                    onMarkRead={() => markAsRead(notif.notificationId)}
-                  />
-                ))}
-
-                {notifications.length === 0 && (
-                  <p className="text-center text-slate-400 py-12">
-                    Aucune notification
-                  </p>
-                )}
-              </div>
+              )}
             </div>
-          </motion.div>
+          </div>
         )}
 
         {/* Batteries Tab */}
         {activeTab === 'batteries' && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="space-y-6"
-          >
-            <div className="glass-card p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="font-semibold text-lg">Gestion des Batteries</h3>
-                <div className="flex gap-2">
-                  <Filter className="w-5 h-5 text-slate-400" />
-                  <select 
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="glass-input py-2 px-3 text-sm"
-                  >
-                    <option value="all">Tous</option>
-                    <option value="Original">Original</option>
-                    <option value="Waste">Waste</option>
-                    <option value="Reused">Reused</option>
-                    <option value="Repurposed">Repurposed</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {filteredBatteries.map((battery) => (
-                  <BatteryRow 
-                    key={battery.batteryId}
-                    battery={battery}
-                    onStatusChange={handleStatusChange}
-                    onView={() => handleBatteryFound(battery.batteryId)}
-                  />
-                ))}
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Battery Detail Tab */}
-        {activeTab === 'battery' && currentBattery && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="space-y-6"
-          >
-            <button 
-              onClick={() => { clearBattery(); setActiveTab('dashboard'); }}
-              className="glass-button"
-            >
-              ← Retour
-            </button>
-            <BatteryInfoCard battery={currentBattery} showModules />
-            
-            {/* Status Change */}
-            <div className="glass-card p-6">
-              <h3 className="font-semibold mb-4">Changer le statut</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {['Original', 'Waste', 'Reused', 'Repurposed'].map((status) => (
+          <div className={`${styles.glassCard} p-6`}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold flex items-center gap-2">
+                <Battery className="w-5 h-5 text-cyan-400" />
+                Gestion des Batteries ({batteries.length})
+              </h3>
+              <div className="flex gap-2">
+                {['all', 'Original', 'Waste', 'Reused', 'Repurposed'].map(status => (
                   <button
                     key={status}
-                    onClick={() => handleStatusChange(currentBattery.batteryId, status)}
-                    disabled={currentBattery.status === status}
-                    className={`glass-button py-3 ${
-                      currentBattery.status === status 
-                        ? 'opacity-50 cursor-not-allowed' 
-                        : ''
-                    } ${
-                      status === 'Waste' ? 'hover:bg-red-500/20' :
-                      status === 'Reused' ? 'hover:bg-green-500/20' :
-                      status === 'Repurposed' ? 'hover:bg-purple-500/20' :
-                      'hover:bg-blue-500/20'
-                    }`}
+                    onClick={() => setFilterStatus(status)}
+                    className={`${styles.glassButton} text-xs ${filterStatus === status ? 'bg-purple-500/20 border-purple-500/50' : ''}`}
                   >
-                    {status}
+                    {status === 'all' ? 'Tous' : status}
                   </button>
                 ))}
               </div>
             </div>
-          </motion.div>
-        )}
-
-        {/* Notification Modal */}
-        <AnimatePresence>
-          {selectedNotification && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-              onClick={() => setSelectedNotification(null)}
-            >
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                className="glass-card p-6 max-w-lg w-full"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold text-lg">Traiter la notification</h3>
-                  <button 
-                    onClick={() => setSelectedNotification(null)}
-                    className="p-2 hover:bg-white/10 rounded-lg"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-
-                <div className="p-4 bg-white/5 rounded-xl mb-4">
-                  <p className="font-semibold mb-2">{selectedNotification.batteryId}</p>
-                  <p className="text-sm text-slate-300">{selectedNotification.message}</p>
-                  <p className="text-xs text-slate-400 mt-2">
-                    De: {selectedNotification.senderRole} ({selectedNotification.senderName})
-                  </p>
-                </div>
-
-                {selectedNotification.status === 'pending' && (
-                  <div className="space-y-3">
-                    <p className="text-sm text-slate-400">
-                      Valider le changement de statut vers:
-                    </p>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button
-                        onClick={() => handleProcessNotification(selectedNotification.notificationId, 'Waste')}
-                        disabled={isProcessing}
-                        className="glass-button danger py-3"
-                      >
-                        {isProcessing ? <RefreshCw className="w-4 h-4 animate-spin" /> : 'Waste'}
-                      </button>
-                      <button
-                        onClick={() => handleProcessNotification(selectedNotification.notificationId, 'Reused')}
-                        disabled={isProcessing}
-                        className="glass-button success py-3"
-                      >
-                        {isProcessing ? <RefreshCw className="w-4 h-4 animate-spin" /> : 'Reused'}
-                      </button>
+            <div className="space-y-3 max-h-[600px] overflow-y-auto">
+              {batteries
+                .filter(bat => filterStatus === 'all' || bat.status === filterStatus)
+                .map((bat) => (
+                <div key={bat.batteryId} className="p-4 bg-white/5 rounded-xl flex items-center justify-between hover:bg-white/10 transition-all">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-cyan-500/20 rounded-lg">
+                      <Battery className="w-5 h-5 text-cyan-400" />
+                    </div>
+                    <div>
+                      <p className="font-semibold">{bat.batteryId}</p>
+                      <p className="text-sm text-gray-400">{bat.modelName || bat.batteryPassportId}</p>
                     </div>
                   </div>
-                )}
+                  <div className="flex items-center gap-3">
+                    <StatusBadge status={bat.status} />
+                    <select 
+                      onChange={(e) => e.target.value && handleStatusChange(bat.batteryId, e.target.value)}
+                      className={`${styles.glassInput} py-2 px-3 text-sm w-36`}
+                      defaultValue=""
+                    >
+                      <option value="">Changer...</option>
+                      <option value="Original">Original</option>
+                      <option value="Waste">Waste</option>
+                      <option value="Reused">Reused</option>
+                      <option value="Repurposed">Repurposed</option>
+                    </select>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
-                {selectedNotification.status !== 'pending' && (
-                  <p className="text-center text-slate-400 py-4">
-                    Cette notification a déjà été traitée
-                  </p>
-                )}
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    </DashboardLayout>
-  );
-};
-
-// Stat Card Component
-const StatCard = ({ label, value, icon: Icon, color }) => {
-  const colors = {
-    cyan: 'from-cyan-500 to-cyan-400',
-    blue: 'from-blue-500 to-blue-400',
-    red: 'from-red-500 to-red-400',
-    green: 'from-green-500 to-green-400',
-    purple: 'from-purple-500 to-purple-400'
-  };
-
-  return (
-    <div className="glass-card p-4">
-      <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${colors[color]} flex items-center justify-center mb-3`}>
-        <Icon className="w-5 h-5 text-white" />
-      </div>
-      <p className="text-2xl font-bold">{value}</p>
-      <p className="text-sm text-slate-400">{label}</p>
-    </div>
-  );
-};
-
-// Notification Item Component
-const NotificationItem = ({ notification, expanded = false, onClick, onMarkRead }) => {
-  const isUrgent = notification.urgency === 'high';
-  
-  return (
-    <motion.div
-      whileHover={{ scale: 1.01 }}
-      onClick={onClick}
-      className={`p-4 rounded-xl border cursor-pointer transition-all ${
-        isUrgent 
-          ? 'bg-red-500/10 border-red-500/30' 
-          : 'bg-white/5 border-white/10 hover:border-white/20'
-      } ${!notification.read ? 'border-l-4 border-l-purple-500' : ''}`}
-    >
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="font-semibold">{notification.batteryId}</span>
-            {isUrgent && (
-              <span className="px-2 py-0.5 bg-red-500/20 text-red-400 text-xs rounded-full">
-                Urgent
-              </span>
-            )}
-            {!notification.read && (
-              <span className="w-2 h-2 rounded-full bg-purple-500" />
+        {/* Alerts Tab */}
+        {activeTab === 'alerts' && (
+          <div className={`${styles.glassCard} p-6`}>
+            <h3 className="font-semibold mb-4 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-400" />
+              Alertes Actives ({alerts.length})
+            </h3>
+            {alerts.length > 0 ? (
+              <div className="space-y-3">
+                {alerts.map((alert, i) => (
+                  <div key={i} className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-semibold text-red-400">{alert.batteryId} - Module {alert.moduleId}</p>
+                        <p className="text-sm text-gray-300">
+                          Résistance: {alert.resistance}Ω / max {alert.maxResistance}Ω 
+                          ({alert.overloadPercent?.toFixed(0)}% surcharge)
+                        </p>
+                      </div>
+                      <AlertTriangle className="w-6 h-6 text-red-400" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <CheckCircle className="w-16 h-16 text-green-500/50 mx-auto mb-4" />
+                <p className="text-gray-400 text-lg">Aucune alerte active</p>
+                <p className="text-gray-500 text-sm">Toutes les batteries fonctionnent normalement</p>
+              </div>
             )}
           </div>
-          <p className="text-sm text-slate-300">{notification.message}</p>
-          {expanded && (
-            <p className="text-xs text-slate-400 mt-2">
-              De: {notification.senderRole} • {notification.status}
-            </p>
-          )}
-        </div>
-        <div className="text-right">
-          <span className={`text-xs px-2 py-1 rounded-full ${
-            notification.status === 'pending' 
-              ? 'bg-yellow-500/20 text-yellow-400'
-              : 'bg-green-500/20 text-green-400'
-          }`}>
-            {notification.status}
-          </span>
-        </div>
-      </div>
-    </motion.div>
-  );
-};
-
-// Battery Row Component
-const BatteryRow = ({ battery, onStatusChange, onView }) => {
-  const [showStatusMenu, setShowStatusMenu] = useState(false);
-
-  const statusColors = {
-    Original: 'original',
-    Waste: 'waste',
-    Reused: 'reused',
-    Repurposed: 'repurposed'
-  };
-
-  return (
-    <div className="p-4 bg-white/5 rounded-xl flex items-center justify-between gap-4">
-      <div className="flex items-center gap-4">
-        <div className="p-2 bg-white/10 rounded-lg">
-          <BatteryIcon className="w-5 h-5 text-cyan-400" />
-        </div>
-        <div>
-          <p className="font-semibold">{battery.batteryId}</p>
-          <p className="text-sm text-slate-400">
-            {battery.modelName} • {battery.manufacturer}
-          </p>
-        </div>
-      </div>
-
-      <div className="flex items-center gap-3">
-        <span className={`status-badge ${statusColors[battery.status]}`}>
-          {battery.status}
-        </span>
-        
-        <div className="relative">
-          <button 
-            onClick={() => setShowStatusMenu(!showStatusMenu)}
-            className="glass-button py-2 px-3 text-sm"
-          >
-            Changer
-          </button>
-          
-          <AnimatePresence>
-            {showStatusMenu && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="absolute right-0 top-full mt-2 z-10 glass-card p-2 min-w-[140px]"
-              >
-                {['Original', 'Waste', 'Reused', 'Repurposed'].map((status) => (
-                  <button
-                    key={status}
-                    onClick={() => {
-                      onStatusChange(battery.batteryId, status);
-                      setShowStatusMenu(false);
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10 text-sm"
-                  >
-                    {status}
-                  </button>
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        <button 
-          onClick={onView}
-          className="glass-button py-2 px-3 text-sm"
-        >
-          Voir
-        </button>
+        )}
       </div>
     </div>
   );
