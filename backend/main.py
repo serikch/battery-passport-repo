@@ -85,6 +85,9 @@ origins = [
     "https://battery-passport-repo-6daplyh9wj7vlxwz6adzcp.streamlit.app",
     "https://battery-passport-repo-bhlvfjv3mzghroajqqpvoj.streamlit.app",
     "https://battery-passport-repo-nmeszl3tuxqxjyw7qkfjwc.streamlit.app",
+    # Render urls
+    "https://battery-passport-api.onrender.com",
+    "https://battery-passport-repo.onrender.com",
     # Wildcard Streamlit (si besoin)
     "https://*.streamlit.app",
 ]
