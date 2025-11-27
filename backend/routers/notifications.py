@@ -271,25 +271,26 @@ async def report_waste(
     reason: str = Query(..., description="Raison du signalement"),
     garage_name: str = Query("Garage", description="Nom du garage")
 ):
-    """
-    Raccourci pour le Garagiste: signale une batterie comme hors d'usage.
-    Crée automatiquement une notification urgente pour le Propriétaire BP.
-    """
     try:
         # Vérifier la batterie
         battery = get_battery_by_id(battery_id)
         if not battery:
             raise HTTPException(status_code=404, detail=f"Batterie {battery_id} non trouvée")
         
+        # Changer le statut à "Signaled As Waste"
+        db.execute_query("""
+            MATCH (b:BatteryInstance {batteryId: $battery_id})
+            SET b.status = 'Signaled As Waste'
+        """, {"battery_id": battery_id})
+        
         # Créer la notification
         notification = NotificationCreate(
             batteryId=battery_id,
-            message=f"🚨 Batterie hors d'usage: {reason}",
+            message=f"🚨 Batterie signalée comme hors d'usage: {reason}",
             senderRole="Garagiste",
             senderName=garage_name,
             urgency="high"
         )
-        
         return await create_notification(notification)
     except HTTPException:
         raise

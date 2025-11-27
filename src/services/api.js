@@ -1,4 +1,6 @@
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://battery-passport-api.onrender.com';
+// Configuration - Utilise l'URL de production
+const API_BASE_URL = 'https://battery-passport-api.onrender.com';
+const FRONTEND_BASE_URL = 'https://battery-passport-repo.onrender.com';
 
 const api = {
   // ==================== BATTERIES ====================
@@ -31,8 +33,14 @@ const api = {
     return res.json();
   },
 
+  // QR Code pointe vers l'URL de production du frontend
   getQRCode(batteryId, size = 10) {
     return `${API_BASE_URL}/battery/${batteryId}/qrcode?size=${size}`;
+  },
+
+  // URL publique pour le passeport batterie (ce que le QR code affiche)
+  getBatteryPassportUrl(batteryId) {
+    return `${FRONTEND_BASE_URL}/passport/${batteryId}`;
   },
 
   // ==================== MODULES ====================
@@ -88,6 +96,7 @@ const api = {
     return res.json();
   },
 
+  // Report waste - Met le statut à "Signaled As Waste" (pas "Waste" directement)
   async reportWaste(batteryId, reason, garageName) {
     const res = await fetch(`${API_BASE_URL}/notifications/report-waste/${batteryId}?reason=${encodeURIComponent(reason)}&garage_name=${encodeURIComponent(garageName)}`, {
       method: 'POST'

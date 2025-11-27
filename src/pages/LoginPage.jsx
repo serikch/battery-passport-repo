@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { 
-  Battery, Wrench, Building2, Recycle, Lock, User, ArrowRight, Sparkles, CheckCircle
+  Battery, Wrench, Building2, Recycle, Lock, User, ArrowRight, Sparkles, CheckCircle, RefreshCw
 } from 'lucide-react';
-import { useAuthStore } from '../store';
 
 // Credentials préremplis pour le PoC
 const DEMO_CREDENTIALS = {
@@ -18,24 +16,21 @@ const ROLES = [
     name: 'Garagiste',
     icon: Wrench,
     description: 'Diagnostic & Signalement',
-    gradient: 'from-blue-500 to-cyan-400',
-    path: '/garagiste'
+    gradient: 'from-blue-500 to-cyan-400'
   },
   {
     id: 'proprietaire',
     name: 'Propriétaire BP',
     icon: Building2,
     description: 'Gestion des statuts',
-    gradient: 'from-purple-500 to-pink-400',
-    path: '/proprietaire'
+    gradient: 'from-purple-500 to-pink-400'
   },
   {
     id: 'centre-tri',
     name: 'Centre de Tri',
     icon: Recycle,
     description: 'Décision & Recyclage',
-    gradient: 'from-green-500 to-emerald-400',
-    path: '/centre-tri'
+    gradient: 'from-green-500 to-emerald-400'
   }
 ];
 
@@ -45,9 +40,7 @@ const styles = {
   primaryButton: "px-6 py-3 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-xl text-white font-semibold transition-all hover:shadow-lg hover:shadow-purple-500/25 flex items-center justify-center gap-2",
 };
 
-const LoginPage = () => {
-  const navigate = useNavigate();
-  const { login } = useAuthStore();
+const LoginPage = ({ onLogin }) => {
   const [selectedRole, setSelectedRole] = useState(null);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -67,22 +60,12 @@ const LoginPage = () => {
     setIsLoading(true);
     await new Promise(resolve => setTimeout(resolve, 500));
     
-    login(selectedRole.id, username);
+    onLogin(selectedRole.id, username);
     setIsLoading(false);
-    navigate(selectedRole.path);
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Background Animation */}
-      <div className="fixed inset-0 z-0 overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-full">
-          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-pulse" />
-          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-cyan-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
-          <div className="absolute top-1/2 left-1/2 w-64 h-64 bg-pink-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }} />
-        </div>
-      </div>
-
       <div className="w-full max-w-lg relative z-10">
         {/* Header */}
         <div className="text-center mb-8">
@@ -171,7 +154,7 @@ const LoginPage = () => {
                 className={`${styles.primaryButton} w-full py-4 text-base disabled:opacity-50`}
               >
                 {isLoading ? (
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <RefreshCw className="w-5 h-5 animate-spin" />
                 ) : (
                   <>
                     Se connecter

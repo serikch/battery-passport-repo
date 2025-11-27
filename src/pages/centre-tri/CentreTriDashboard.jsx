@@ -1,12 +1,46 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Recycle, Battery, QrCode, Search, AlertTriangle, CheckCircle, 
   RefreshCw, LogOut, Sparkles, TrendingUp, Package, Camera, X
 } from 'lucide-react';
-import { useAuthStore, useBatteryStore, useDecisionStore } from '../../store';
-import api from '../../services/api';
 
-// Styles
+// ==================== CONFIGURATION ====================
+const API_BASE_URL = 'https://battery-passport-api.onrender.com';
+
+// ==================== API ====================
+const api = {
+  async getBatteryFull(batteryId) {
+    const res = await fetch(`${API_BASE_URL}/battery/${batteryId}/full`);
+    if (!res.ok) throw new Error('Battery not found');
+    return res.json();
+  },
+  async getAllBatteries() {
+    const res = await fetch(`${API_BASE_URL}/battery/`);
+    if (!res.ok) throw new Error('Failed to fetch batteries');
+    return res.json();
+  },
+  async getDecision(batteryId, marketDemand) {
+    const res = await fetch(`${API_BASE_URL}/modules/battery/${batteryId}/decision?market_demand=${marketDemand}`, { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to get decision');
+    return res.json();
+  },
+  async updateStatus(batteryId, newStatus) {
+    const res = await fetch(`${API_BASE_URL}/battery/${batteryId}/status`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ newStatus })
+    });
+    if (!res.ok) throw new Error('Failed to update status');
+    return res.json();
+  },
+  async confirmReception(batteryId, centerName) {
+    const res = await fetch(`${API_BASE_URL}/notifications/confirm-reception/${batteryId}?center_name=${encodeURIComponent(centerName)}`, { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to confirm reception');
+    return res.json();
+  }
+};
+
+// ==================== STYLES ====================
 const styles = {
   glassCard: "bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl shadow-xl",
   glassButton: "px-4 py-2 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl text-white font-medium transition-all hover:bg-white/10 hover:border-white/20 flex items-center justify-center gap-2",
@@ -15,13 +49,14 @@ const styles = {
   successButton: "px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl text-white font-semibold transition-all hover:shadow-lg hover:shadow-green-500/25 flex items-center justify-center gap-2",
 };
 
-// Status Badge
+// ==================== STATUS BADGE ====================
 const StatusBadge = ({ status }) => {
   const colors = {
-    Original: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-    Waste: 'bg-red-500/20 text-red-400 border-red-500/30',
-    Reused: 'bg-green-500/20 text-green-400 border-green-500/30',
-    Repurposed: 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+    'Original': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+    'Signaled As Waste': 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+    'Waste': 'bg-red-500/20 text-red-400 border-red-500/30',
+    'Reused': 'bg-green-500/20 text-green-400 border-green-500/30',
+    'Repurposed': 'bg-purple-500/20 text-purple-400 border-purple-500/30'
   };
   return (
     <span className={`px-3 py-1 rounded-full text-xs font-bold border ${colors[status] || colors.Original}`}>
@@ -30,13 +65,13 @@ const StatusBadge = ({ status }) => {
   );
 };
 
-// Toast
+// ==================== TOAST ====================
 const Toast = ({ message, type, onClose }) => (
   <div className={`fixed top-4 right-4 z-50 px-6 py-4 rounded-xl backdrop-blur-xl border ${
     type === 'success' ? 'bg-green-500/20 border-green-500/30 text-green-400' :
     type === 'error' ? 'bg-red-500/20 border-red-500/30 text-red-400' :
     'bg-white/10 border-white/20 text-white'
-  } animate-pulse`}>
+  }`}>
     <div className="flex items-center gap-3">
       {type === 'success' && <CheckCircle className="w-5 h-5" />}
       {type === 'error' && <AlertTriangle className="w-5 h-5" />}
@@ -46,7 +81,7 @@ const Toast = ({ message, type, onClose }) => (
   </div>
 );
 
-// Module Card
+// ==================== MODULE CARD ====================
 const ModuleCard = ({ module }) => {
   const ratio = (module.internalResistance / module.maxResistance) * 100;
   const status = module.isDefective ? 'critical' : ratio > 80 ? 'warning' : 'ok';
@@ -79,73 +114,155 @@ const ModuleCard = ({ module }) => {
   );
 };
 
-// QR Scanner Modal
+// ==================== QR SCANNER MODAL ====================
 const QRScannerModal = ({ isOpen, onClose, onScan }) => {
   const videoRef = useRef(null);
-  const [hasCamera, setHasCamera] = useState(false);
+  const streamRef = useRef(null);
+  const [cameraState, setCameraState] = useState('initializing');
   const [manualId, setManualId] = useState('');
-  const [stream, setStream] = useState(null);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const stopCamera = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  }, []);
+
+  const startCamera = useCallback(async () => {
+    setCameraState('initializing');
+    setErrorMessage('');
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setCameraState('unavailable');
+      setErrorMessage('Votre navigateur ne supporte pas l\'accès à la caméra');
+      return;
+    }
+
+    try {
+      let constraints = {
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false
+      };
+
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (err) {
+        constraints = { video: true, audio: false };
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      }
+
+      streamRef.current = stream;
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current.play()
+            .then(() => setCameraState('active'))
+            .catch(err => {
+              setCameraState('unavailable');
+              setErrorMessage('Impossible de démarrer la vidéo');
+            });
+        };
+      }
+    } catch (err) {
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        setCameraState('denied');
+        setErrorMessage('Accès à la caméra refusé. Veuillez autoriser l\'accès dans les paramètres.');
+      } else if (err.name === 'NotFoundError') {
+        setCameraState('unavailable');
+        setErrorMessage('Aucune caméra détectée.');
+      } else {
+        setCameraState('unavailable');
+        setErrorMessage(`Erreur: ${err.message || 'Inconnue'}`);
+      }
+    }
+  }, []);
 
   useEffect(() => {
-    if (isOpen) startCamera();
+    if (isOpen) {
+      startCamera();
+    } else {
+      stopCamera();
+      setCameraState('initializing');
+    }
     return () => stopCamera();
-  }, [isOpen]);
-
-  const startCamera = async () => {
-    try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' }
-      });
-      setStream(mediaStream);
-      setHasCamera(true);
-      if (videoRef.current) videoRef.current.srcObject = mediaStream;
-    } catch (err) {
-      setHasCamera(false);
-    }
-  };
-
-  const stopCamera = () => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-      setStream(null);
-    }
-  };
+  }, [isOpen, startCamera, stopCamera]);
 
   const handleManualSubmit = () => {
     if (manualId.trim()) {
       stopCamera();
       onScan(manualId.trim());
+      setManualId('');
       onClose();
     }
+  };
+
+  const handleClose = () => {
+    stopCamera();
+    setManualId('');
+    onClose();
   };
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className={`${styles.glassCard} p-6 max-w-md w-full`}>
+      <div className={`${styles.glassCard} p-6 max-w-md w-full max-h-[90vh] overflow-y-auto`}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold flex items-center gap-2">
             <Camera className="w-5 h-5 text-green-400" />
             Scanner QR Code
           </h3>
-          <button onClick={() => { stopCamera(); onClose(); }} className="p-2 hover:bg-white/10 rounded-lg">
+          <button onClick={handleClose} className="p-2 hover:bg-white/10 rounded-lg">
             <X className="w-5 h-5" />
           </button>
         </div>
         
-        <div className="aspect-square bg-black/40 rounded-xl mb-4 relative overflow-hidden">
-          {hasCamera ? (
-            <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover rounded-xl" />
-          ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
-              <Camera className="w-16 h-16 mb-4 opacity-50" />
-              <p className="text-sm">Caméra non disponible</p>
+        <div className="aspect-square bg-black/60 rounded-xl mb-4 relative overflow-hidden">
+          {cameraState === 'initializing' && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
+              <RefreshCw className="w-12 h-12 animate-spin mb-4" />
+              <p className="text-sm">Initialisation de la caméra...</p>
             </div>
+          )}
+          
+          {cameraState === 'active' && (
+            <>
+              <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="w-48 h-48 border-2 border-green-400 rounded-lg relative">
+                  <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-green-400 rounded-tl-lg"></div>
+                  <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-green-400 rounded-tr-lg"></div>
+                  <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-green-400 rounded-bl-lg"></div>
+                  <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-green-400 rounded-br-lg"></div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {(cameraState === 'denied' || cameraState === 'unavailable') && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 p-4">
+              <Camera className="w-16 h-16 mb-4 opacity-50" />
+              <p className="text-sm text-center mb-2">{cameraState === 'denied' ? 'Caméra non autorisée' : 'Caméra non disponible'}</p>
+              <p className="text-xs text-center text-gray-500">{errorMessage}</p>
+              <button onClick={startCamera} className={`${styles.glassButton} mt-4 text-sm`}>
+                <RefreshCw className="w-4 h-4" /> Réessayer
+              </button>
+            </div>
+          )}
+          
+          {cameraState === 'initializing' && (
+            <video ref={videoRef} autoPlay playsInline muted className="hidden" />
           )}
         </div>
 
         <div className="space-y-3">
+          <p className="text-center text-sm text-gray-400">Ou entrez l'ID manuellement :</p>
           <input
             type="text"
             value={manualId}
@@ -154,16 +271,27 @@ const QRScannerModal = ({ isOpen, onClose, onScan }) => {
             className={styles.glassInput}
             onKeyDown={(e) => e.key === 'Enter' && handleManualSubmit()}
           />
-          <button onClick={handleManualSubmit} className={`${styles.primaryButton} w-full`}>
+          <button onClick={handleManualSubmit} disabled={!manualId.trim()} className={`${styles.primaryButton} w-full disabled:opacity-50`}>
             <Search className="w-5 h-5" /> Rechercher
           </button>
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-white/10">
+          <p className="text-xs text-gray-400 mb-2">Batteries de test :</p>
+          <div className="flex flex-wrap gap-2">
+            {['BP-2024-CATL-001', 'BP-2024-LG-002', 'BP-2024-BYD-003'].map(id => (
+              <button key={id} onClick={() => { stopCamera(); onScan(id); setManualId(''); onClose(); }} className={`${styles.glassButton} text-xs`}>
+                {id}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div>
   );
 };
 
-// Battery Info Card
+// ==================== BATTERY INFO CARD ====================
 const BatteryInfoCard = ({ battery }) => (
   <div className={`${styles.glassCard} p-6`}>
     <div className="flex items-start justify-between mb-6">
@@ -207,19 +335,17 @@ const BatteryInfoCard = ({ battery }) => (
   </div>
 );
 
-// Main Component
-const CentreTriDashboard = () => {
-  const { logout } = useAuthStore();
-  const { currentBattery, fetchBattery, updateStatus, clearBattery } = useBatteryStore();
-  const { decision, getDecision, confirmReception, clearDecision } = useDecisionStore();
-  
+// ==================== MAIN DASHBOARD ====================
+const CentreTriDashboard = ({ onLogout }) => {
+  const [battery, setBattery] = useState(null);
+  const [decision, setDecision] = useState(null);
   const [batteryId, setBatteryId] = useState('');
-  const [wasteBatteries, setWasteBatteries] = useState([]);
-  const [receptionConfirmed, setReceptionConfirmed] = useState(false);
   const [marketDemand, setMarketDemand] = useState('normal');
+  const [receptionConfirmed, setReceptionConfirmed] = useState(false);
   const [finalDecision, setFinalDecision] = useState(null);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
+  const [wasteBatteries, setWasteBatteries] = useState([]);
   const [showScanner, setShowScanner] = useState(false);
 
   const showToast = (message, type) => {
@@ -240,14 +366,16 @@ const CentreTriDashboard = () => {
     }
   };
 
-  const handleSearch = async (id = batteryId) => {
+  const handleSearch = async (id = null) => {
     const searchId = id || batteryId;
     if (!searchId.trim()) return;
     setLoading(true);
     try {
-      await fetchBattery(searchId);
+      const bat = await api.getBatteryFull(searchId);
+      setBattery(bat);
+      setBatteryId(searchId);
       setReceptionConfirmed(false);
-      clearDecision();
+      setDecision(null);
       setFinalDecision(null);
       showToast('Batterie trouvée !', 'success');
     } catch (err) {
@@ -259,7 +387,7 @@ const CentreTriDashboard = () => {
   const handleConfirmReception = async () => {
     setLoading(true);
     try {
-      await confirmReception(currentBattery.batteryId, 'Centre de Tri EcoRecycle');
+      await api.confirmReception(battery.batteryId, 'Centre de Tri EcoRecycle');
       setReceptionConfirmed(true);
       showToast('Réception confirmée !', 'success');
     } catch (err) {
@@ -271,7 +399,8 @@ const CentreTriDashboard = () => {
   const handleGetDecision = async () => {
     setLoading(true);
     try {
-      const dec = await getDecision(currentBattery.batteryId, marketDemand);
+      const dec = await api.getDecision(battery.batteryId, marketDemand);
+      setDecision(dec);
       setFinalDecision(dec.recommendation);
     } catch (err) {
       showToast('Erreur', 'error');
@@ -284,10 +413,10 @@ const CentreTriDashboard = () => {
     setLoading(true);
     try {
       const statusMap = { Recycle: 'Waste', Reuse: 'Reused', Remanufacture: 'Reused', Repurpose: 'Repurposed' };
-      await updateStatus(currentBattery.batteryId, statusMap[finalDecision]);
+      await api.updateStatus(battery.batteryId, statusMap[finalDecision]);
       showToast(`Décision validée: ${finalDecision}`, 'success');
-      clearBattery();
-      clearDecision();
+      setBattery(null);
+      setDecision(null);
       setReceptionConfirmed(false);
       setFinalDecision(null);
       setBatteryId('');
@@ -325,9 +454,14 @@ const CentreTriDashboard = () => {
               <p className="text-xs text-gray-400">Battery Passport - Décision</p>
             </div>
           </div>
-          <button onClick={logout} className={styles.glassButton}>
-            <LogOut className="w-5 h-5" />
-          </button>
+          <div className="flex gap-2">
+            <button onClick={() => window.location.reload()} className={styles.glassButton} title="Recharger">
+              <RefreshCw className="w-5 h-5" />
+            </button>
+            <button onClick={onLogout} className={styles.glassButton}>
+              <LogOut className="w-5 h-5" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -366,7 +500,7 @@ const CentreTriDashboard = () => {
                 {wasteBatteries.map(b => (
                   <button 
                     key={b.batteryId} 
-                    onClick={() => { setBatteryId(b.batteryId); handleSearch(b.batteryId); }} 
+                    onClick={() => handleSearch(b.batteryId)} 
                     className={`${styles.glassButton} text-xs`}
                   >
                     {b.batteryId}
@@ -377,12 +511,12 @@ const CentreTriDashboard = () => {
           )}
         </div>
 
-        {currentBattery && (
+        {battery && (
           <>
             {/* Status Verification */}
-            <div className={`${styles.glassCard} p-6 ${currentBattery.status === 'Waste' ? 'border border-green-500/30' : 'border border-yellow-500/30'}`}>
+            <div className={`${styles.glassCard} p-6 ${battery.status === 'Waste' ? 'border border-green-500/30' : 'border border-yellow-500/30'}`}>
               <div className="flex items-center gap-4">
-                {currentBattery.status === 'Waste' ? (
+                {battery.status === 'Waste' ? (
                   <>
                     <div className="p-4 bg-green-500/20 rounded-full">
                       <CheckCircle className="w-8 h-8 text-green-400" />
@@ -398,7 +532,7 @@ const CentreTriDashboard = () => {
                       <AlertTriangle className="w-8 h-8 text-yellow-400" />
                     </div>
                     <div>
-                      <h3 className="text-xl font-bold text-yellow-400">Statut Incorrect: {currentBattery.status}</h3>
+                      <h3 className="text-xl font-bold text-yellow-400">Statut Incorrect: {battery.status}</h3>
                       <p className="text-gray-300">Attendu: Waste</p>
                     </div>
                   </>
@@ -406,10 +540,10 @@ const CentreTriDashboard = () => {
               </div>
             </div>
 
-            <BatteryInfoCard battery={currentBattery} />
+            <BatteryInfoCard battery={battery} />
 
             {/* Reception & Decision Flow */}
-            {currentBattery.status === 'Waste' && !receptionConfirmed && (
+            {battery.status === 'Waste' && !receptionConfirmed && (
               <div className={`${styles.glassCard} p-6 text-center`}>
                 <button onClick={handleConfirmReception} disabled={loading} className={`${styles.successButton} px-8`}>
                   {loading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <><CheckCircle className="w-5 h-5" /> Confirmer la Réception</>}
