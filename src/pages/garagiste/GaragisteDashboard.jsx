@@ -128,87 +128,123 @@ const QRScannerModal = ({ isOpen, onClose, onScan }) => {
   const [manualId, setManualId] = useState('');
   const [scannerActive, setScannerActive] = useState(false);
   const [error, setError] = useState('');
-  const scannerRef = useRef(null);
+  const [scriptLoaded, setScriptLoaded] = useState(false);
   const html5QrCodeRef = useRef(null);
   const fileInputRef = useRef(null);
 
   // Charger le script html5-qrcode dynamiquement
   useEffect(() => {
-    if (!isOpen) return;
-    
+    if (window.Html5Qrcode) {
+      setScriptLoaded(true);
+      return;
+    }
+
     const script = document.createElement('script');
     script.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
     script.async = true;
     script.onload = () => {
       console.log('html5-qrcode loaded');
+      setScriptLoaded(true);
+    };
+    script.onerror = () => {
+      setError('Erreur de chargement du scanner');
     };
     document.body.appendChild(script);
 
     return () => {
-      if (document.body.contains(script)) {
-        document.body.removeChild(script);
-      }
+      // Ne pas supprimer le script, il peut être réutilisé
     };
-  }, [isOpen]);
+  }, []);
+
+  // Extraire l'ID de batterie d'une URL ou texte
+  const extractBatteryId = (text) => {
+    // Format: https://xxx/passport/BP-2024-XXX-001
+    if (text.includes('/passport/')) {
+      const match = text.match(/\/passport\/(BP-[\w-]+)/);
+      if (match) return match[1];
+    }
+    // Format: https://xxx/battery/BP-2024-XXX-001/full
+    if (text.includes('/battery/')) {
+      const match = text.match(/\/battery\/(BP-[\w-]+)/);
+      if (match) return match[1];
+    }
+    // Format direct: BP-2024-XXX-001
+    if (text.includes('BP-')) {
+      const match = text.match(/(BP-[\w-]+)/);
+      if (match) return match[1];
+    }
+    return text;
+  };
 
   // Démarrer le scanner
   const startScanner = async () => {
     setError('');
     
     if (!window.Html5Qrcode) {
-      setError('Chargement du scanner... Réessayez dans 2 secondes.');
+      setError('Scanner en cours de chargement... Réessayez.');
       return;
     }
 
+    // S'assurer qu'il n'y a pas de scanner actif
+    if (html5QrCodeRef.current) {
+      try {
+        await html5QrCodeRef.current.stop();
+      } catch (e) {}
+    }
+
     try {
-      html5QrCodeRef.current = new window.Html5Qrcode("qr-reader");
+      html5QrCodeRef.current = new window.Html5Qrcode("qr-reader-garagiste");
       
+      const config = {
+        fps: 10,
+        qrbox: { width: 250, height: 250 },
+        aspectRatio: 1.0,
+        showTorchButtonIfSupported: true,
+        showZoomSliderIfSupported: true,
+        defaultZoomValueIfSupported: 2
+      };
+
       await html5QrCodeRef.current.start(
         { facingMode: "environment" },
-        {
-          fps: 10,
-          qrbox: { width: 250, height: 250 },
-          aspectRatio: 1.0
-        },
+        config,
         (decodedText) => {
-          // QR Code détecté !
           console.log('QR Code détecté:', decodedText);
-          
-          // Extraire l'ID de batterie de l'URL ou utiliser directement
-          let batteryId = decodedText;
-          if (decodedText.includes('/battery/')) {
-            const match = decodedText.match(/battery\/([^\/]+)/);
-            if (match) batteryId = match[1];
-          } else if (decodedText.includes('BP-')) {
-            const match = decodedText.match(/(BP-[\w-]+)/);
-            if (match) batteryId = match[1];
-          }
-          
+          const batteryId = extractBatteryId(decodedText);
           stopScanner();
           onScan(batteryId);
           onClose();
         },
         (errorMessage) => {
-          // Ignorer les erreurs de scan normales
+          // Ignorer les erreurs de scan normales (pas de QR détecté)
         }
       );
       
       setScannerActive(true);
     } catch (err) {
       console.error('Erreur démarrage scanner:', err);
-      setError(`Impossible d'accéder à la caméra: ${err.message || 'Vérifiez les permissions'}`);
+      if (err.message?.includes('Permission')) {
+        setError('Accès caméra refusé. Autorisez l\'accès dans les paramètres de votre navigateur.');
+      } else if (err.message?.includes('NotFound')) {
+        setError('Aucune caméra trouvée sur cet appareil.');
+      } else {
+        setError(`Erreur: ${err.message || 'Impossible d\'accéder à la caméra'}`);
+      }
     }
   };
 
   // Arrêter le scanner
   const stopScanner = async () => {
-    if (html5QrCodeRef.current && scannerActive) {
+    if (html5QrCodeRef.current) {
       try {
-        await html5QrCodeRef.current.stop();
+        const state = html5QrCodeRef.current.getState();
+        if (state === 2) { // SCANNING
+          await html5QrCodeRef.current.stop();
+        }
         html5QrCodeRef.current.clear();
       } catch (err) {
         console.error('Erreur arrêt scanner:', err);
       }
+      html5QrCodeRef.current = null;
     }
     setScannerActive(false);
   };
@@ -226,24 +262,18 @@ const QRScannerModal = ({ isOpen, onClose, onScan }) => {
     }
 
     try {
-      const html5QrCode = new window.Html5Qrcode("qr-reader-file");
+      const html5QrCode = new window.Html5Qrcode("qr-reader-file-garagiste");
       const result = await html5QrCode.scanFile(file, true);
       
-      // Extraire l'ID
-      let batteryId = result;
-      if (result.includes('/battery/')) {
-        const match = result.match(/battery\/([^\/]+)/);
-        if (match) batteryId = match[1];
-      } else if (result.includes('BP-')) {
-        const match = result.match(/(BP-[\w-]+)/);
-        if (match) batteryId = match[1];
-      }
-      
+      const batteryId = extractBatteryId(result);
       onScan(batteryId);
       onClose();
     } catch (err) {
-      setError('Aucun QR code trouvé dans l\'image');
+      setError('Aucun QR code trouvé dans l\'image. Assurez-vous que l\'image est nette.');
     }
+    
+    // Reset le input file
+    event.target.value = '';
   };
 
   // Cleanup à la fermeture
@@ -288,26 +318,35 @@ const QRScannerModal = ({ isOpen, onClose, onScan }) => {
         {/* Zone de scan */}
         <div className="mb-4">
           <div 
-            id="qr-reader" 
-            className="w-full aspect-square bg-slate-100 rounded-xl overflow-hidden"
-            style={{ display: scannerActive ? 'block' : 'none' }}
+            id="qr-reader-garagiste" 
+            className="w-full bg-slate-100 rounded-xl overflow-hidden"
+            style={{ 
+              minHeight: scannerActive ? '300px' : '0px',
+              display: scannerActive ? 'block' : 'none' 
+            }}
           />
-          <div id="qr-reader-file" style={{ display: 'none' }} />
+          <div id="qr-reader-file-garagiste" style={{ display: 'none' }} />
           
           {!scannerActive && (
-            <div className="w-full aspect-square bg-slate-100 rounded-xl flex flex-col items-center justify-center gap-4">
-              <QrCode className="w-16 h-16 text-slate-300" />
-              <p className="text-slate-500 text-sm text-center">
-                Cliquez sur "Activer Caméra" pour scanner
-              </p>
+            <div className="w-full aspect-square bg-slate-100 rounded-xl flex flex-col items-center justify-center gap-4 p-8">
+              <QrCode className="w-20 h-20 text-slate-300" />
+              <div className="text-center">
+                <p className="text-slate-600 font-medium mb-1">
+                  {scriptLoaded ? 'Prêt à scanner' : 'Chargement...'}
+                </p>
+                <p className="text-slate-400 text-sm">
+                  Cliquez sur "Activer Caméra" ou importez une image
+                </p>
+              </div>
             </div>
           )}
         </div>
 
         {/* Erreur */}
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
-            {error}
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm flex items-start gap-2">
+            <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            <span>{error}</span>
           </div>
         )}
 
@@ -315,7 +354,8 @@ const QRScannerModal = ({ isOpen, onClose, onScan }) => {
         <div className="flex gap-2 mb-4">
           <button
             onClick={scannerActive ? stopScanner : startScanner}
-            className={`flex-1 py-3 rounded-xl font-medium transition-all flex items-center justify-center gap-2 ${
+            disabled={!scriptLoaded}
+            className={`flex-1 py-3 rounded-xl font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-50 ${
               scannerActive 
                 ? 'bg-red-100 text-red-600 hover:bg-red-200' 
                 : 'bg-blue-600 text-white hover:bg-blue-700'
@@ -327,7 +367,8 @@ const QRScannerModal = ({ isOpen, onClose, onScan }) => {
           
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="flex-1 py-3 rounded-xl font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 transition-all flex items-center justify-center gap-2"
+            disabled={!scriptLoaded}
+            className="flex-1 py-3 rounded-xl font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
           >
             <Upload className="w-5 h-5" />
             Importer Image
@@ -336,6 +377,7 @@ const QRScannerModal = ({ isOpen, onClose, onScan }) => {
             ref={fileInputRef}
             type="file"
             accept="image/*"
+            capture="environment"
             onChange={handleFileUpload}
             className="hidden"
           />
@@ -354,7 +396,7 @@ const QRScannerModal = ({ isOpen, onClose, onScan }) => {
             type="text"
             value={manualId}
             onChange={(e) => setManualId(e.target.value)}
-            placeholder="Entrez l'ID manuellement (ex: BP-2024-LG-002)"
+            placeholder="Entrez l'ID (ex: BP-2024-LG-002)"
             className={styles.input}
             onKeyDown={(e) => e.key === 'Enter' && handleManualSubmit()}
           />
@@ -546,9 +588,10 @@ const GaragisteDashboard = ({ onLogout }) => {
           <div className="flex items-center gap-4">
             {/* Logo */}
             <img 
-              src="/logo-equipe73.png" 
+              src="/logo-equipe73.png"
               alt="Équipe 73"
-              className="h-10 w-auto hidden sm:block"
+              className="h-12 w-auto"
+              onError={(e) => { e.target.style.display = 'none'; }}
             />
             <div className="flex gap-2">
               <button onClick={() => window.location.reload()} className={styles.button} title="Recharger">

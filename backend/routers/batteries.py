@@ -30,6 +30,9 @@ from datetime import datetime
 
 router = APIRouter()
 
+# URL du frontend pour le passeport (à configurer en variable d'environnement)
+FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "https://battery-passport-repo.onrender.com")
+
 # ============================================
 # GET - Liste des batteries
 # ============================================
@@ -199,7 +202,7 @@ async def generate_qr_code(
 ):
     """
     Génère un QR code pour une batterie.
-    Le QR code pointe vers l'URL du passeport de la batterie.
+    Le QR code pointe vers l'URL du passeport sur le FRONTEND (pas l'API).
     """
     try:
         # Vérifier que la batterie existe
@@ -207,9 +210,8 @@ async def generate_qr_code(
         if not result:
             raise HTTPException(status_code=404, detail=f"Batterie {battery_id} non trouvée")
         
-        # URL du passeport (à adapter selon déploiement)
-        base_url = os.getenv("API_BASE_URL", "https://battery-passport-repo.onrender.com")
-        passport_url = f"{base_url}/battery/{battery_id}/full"
+        # URL du passeport sur le FRONTEND (pas l'API!)
+        passport_url = f"{FRONTEND_BASE_URL}/passport/{battery_id}"
         
         # Générer le QR code
         qr = qrcode.QRCode(
@@ -253,9 +255,8 @@ async def save_qr_code(battery_id: str):
         if not result:
             raise HTTPException(status_code=404, detail=f"Batterie {battery_id} non trouvée")
         
-        # URL du passeport
-        base_url = os.getenv("API_BASE_URL", "https://battery-passport-repo.onrender.com")
-        passport_url = f"{base_url}/battery/{battery_id}/full"
+        # URL du passeport sur le FRONTEND
+        passport_url = f"{FRONTEND_BASE_URL}/passport/{battery_id}"
         
         # Générer le QR code
         qr = qrcode.QRCode(
