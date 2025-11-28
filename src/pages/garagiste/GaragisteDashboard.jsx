@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Wrench, Battery, QrCode, Search, AlertTriangle, CheckCircle, 
   Activity, Send, Thermometer, Zap, Gauge, RefreshCw, LogOut,
-  Camera, X, ExternalLink
+  Camera, X, ExternalLink, Upload
 } from 'lucide-react';
 
 // ==================== CONFIGURATION ====================
@@ -36,23 +36,23 @@ const api = {
   }
 };
 
-// ==================== STYLES ====================
+// ==================== STYLES (Light Mode) ====================
 const styles = {
-  glassCard: "bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl shadow-xl",
-  glassButton: "px-4 py-2 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl text-white font-medium transition-all hover:bg-white/10 hover:border-white/20 flex items-center justify-center gap-2",
-  glassInput: "w-full px-4 py-3 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 transition-all",
-  primaryButton: "px-6 py-3 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-xl text-white font-semibold transition-all hover:shadow-lg hover:shadow-purple-500/25 flex items-center justify-center gap-2",
-  dangerButton: "px-6 py-3 bg-gradient-to-r from-red-500 to-orange-500 rounded-xl text-white font-semibold transition-all hover:shadow-lg hover:shadow-red-500/25 flex items-center justify-center gap-2",
+  card: "bg-white border border-slate-200 rounded-2xl shadow-sm hover:shadow-md transition-shadow",
+  button: "px-4 py-2 bg-white border border-slate-200 rounded-xl text-slate-700 font-medium transition-all hover:bg-slate-50 hover:border-slate-300 flex items-center justify-center gap-2",
+  input: "w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all",
+  primaryButton: "px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-500 rounded-xl text-white font-semibold transition-all hover:shadow-lg hover:shadow-blue-500/25 flex items-center justify-center gap-2",
+  dangerButton: "px-6 py-3 bg-gradient-to-r from-red-600 to-red-500 rounded-xl text-white font-semibold transition-all hover:shadow-lg hover:shadow-red-500/25 flex items-center justify-center gap-2",
 };
 
 // ==================== STATUS BADGE ====================
 const StatusBadge = ({ status }) => {
   const colors = {
-    'Original': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-    'Signaled As Waste': 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-    'Waste': 'bg-red-500/20 text-red-400 border-red-500/30',
-    'Reused': 'bg-green-500/20 text-green-400 border-green-500/30',
-    'Repurposed': 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+    'Original': 'bg-blue-50 text-blue-600 border-blue-200',
+    'Signaled As Waste': 'bg-amber-50 text-amber-600 border-amber-200',
+    'Waste': 'bg-red-50 text-red-600 border-red-200',
+    'Reused': 'bg-green-50 text-green-600 border-green-200',
+    'Repurposed': 'bg-purple-50 text-purple-600 border-purple-200'
   };
   return (
     <span className={`px-3 py-1 rounded-full text-xs font-bold border ${colors[status] || colors.Original}`}>
@@ -63,11 +63,11 @@ const StatusBadge = ({ status }) => {
 
 // ==================== TOAST ====================
 const Toast = ({ message, type, onClose }) => (
-  <div className={`fixed top-4 right-4 z-50 px-6 py-4 rounded-xl backdrop-blur-xl border ${
-    type === 'success' ? 'bg-green-500/20 border-green-500/30 text-green-400' :
-    type === 'error' ? 'bg-red-500/20 border-red-500/30 text-red-400' :
-    type === 'warning' ? 'bg-yellow-500/20 border-yellow-500/30 text-yellow-400' :
-    'bg-white/10 border-white/20 text-white'
+  <div className={`fixed top-4 right-4 z-50 px-6 py-4 rounded-xl shadow-lg border ${
+    type === 'success' ? 'bg-green-50 border-green-200 text-green-700' :
+    type === 'error' ? 'bg-red-50 border-red-200 text-red-700' :
+    type === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-700' :
+    'bg-white border-slate-200 text-slate-700'
   }`}>
     <div className="flex items-center gap-3">
       {type === 'success' && <CheckCircle className="w-5 h-5" />}
@@ -86,125 +86,178 @@ const ModuleCard = ({ module }) => {
   
   return (
     <div className={`p-4 rounded-xl border ${
-      status === 'critical' ? 'border-red-500/50 bg-red-500/10' :
-      status === 'warning' ? 'border-yellow-500/50 bg-yellow-500/10' :
-      'border-white/10 bg-white/5'
+      status === 'critical' ? 'border-red-300 bg-red-50' :
+      status === 'warning' ? 'border-amber-300 bg-amber-50' :
+      'border-slate-200 bg-slate-50'
     }`}>
       <div className="flex items-center justify-between mb-3">
-        <span className="font-bold">{module.moduleId}</span>
-        <span className={`text-xs px-2 py-1 rounded-full ${
-          status === 'critical' ? 'bg-red-500/20 text-red-400' :
-          status === 'warning' ? 'bg-yellow-500/20 text-yellow-400' :
-          'bg-green-500/20 text-green-400'
+        <span className="font-bold text-slate-800">{module.moduleId}</span>
+        <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+          status === 'critical' ? 'bg-red-100 text-red-600' :
+          status === 'warning' ? 'bg-amber-100 text-amber-600' :
+          'bg-green-100 text-green-600'
         }`}>
           {status === 'critical' ? 'Critique' : status === 'warning' ? 'Attention' : 'OK'}
         </span>
       </div>
       <div className="space-y-2 text-xs">
         <div className="flex justify-between">
-          <span className="text-gray-400">Résistance</span>
-          <span className={status === 'critical' ? 'text-red-400' : ''}>{module.internalResistance?.toFixed(3)}Ω</span>
+          <span className="text-slate-500">Résistance</span>
+          <span className={status === 'critical' ? 'text-red-600 font-medium' : 'text-slate-700'}>{module.internalResistance?.toFixed(3)}Ω</span>
         </div>
-        <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+        <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
           <div 
             className={`h-full rounded-full ${
               status === 'critical' ? 'bg-gradient-to-r from-red-500 to-red-400' :
-              status === 'warning' ? 'bg-gradient-to-r from-yellow-500 to-yellow-400' :
+              status === 'warning' ? 'bg-gradient-to-r from-amber-500 to-amber-400' :
               'bg-gradient-to-r from-green-500 to-green-400'
             }`}
             style={{ width: `${Math.min(ratio, 100)}%` }}
           />
         </div>
-        <div className="flex justify-between"><span className="text-gray-400">SOH</span><span>{module.soh}%</span></div>
-        <div className="flex justify-between"><span className="text-gray-400">Temp</span><span>{module.temperature}°C</span></div>
-        <div className="flex justify-between"><span className="text-gray-400">Voltage</span><span>{module.voltage}V</span></div>
+        <div className="flex justify-between"><span className="text-slate-500">SOH</span><span className="text-slate-700">{module.soh}%</span></div>
+        <div className="flex justify-between"><span className="text-slate-500">Temp</span><span className="text-slate-700">{module.temperature}°C</span></div>
+        <div className="flex justify-between"><span className="text-slate-500">Voltage</span><span className="text-slate-700">{module.voltage}V</span></div>
       </div>
     </div>
   );
 };
 
-// ==================== QR SCANNER MODAL ====================
+// ==================== QR SCANNER MODAL (avec html5-qrcode) ====================
 const QRScannerModal = ({ isOpen, onClose, onScan }) => {
-  const videoRef = useRef(null);
-  const streamRef = useRef(null);
-  const [cameraState, setCameraState] = useState('initializing');
   const [manualId, setManualId] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
+  const [scannerActive, setScannerActive] = useState(false);
+  const [error, setError] = useState('');
+  const scannerRef = useRef(null);
+  const html5QrCodeRef = useRef(null);
+  const fileInputRef = useRef(null);
 
-  const stopCamera = useCallback(() => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-  }, []);
+  // Charger le script html5-qrcode dynamiquement
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    const script = document.createElement('script');
+    script.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
+    script.async = true;
+    script.onload = () => {
+      console.log('html5-qrcode loaded');
+    };
+    document.body.appendChild(script);
 
-  const startCamera = useCallback(async () => {
-    setCameraState('initializing');
-    setErrorMessage('');
+    return () => {
+      if (document.body.contains(script)) {
+        document.body.removeChild(script);
+      }
+    };
+  }, [isOpen]);
 
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setCameraState('unavailable');
-      setErrorMessage('Votre navigateur ne supporte pas l\'accès à la caméra');
+  // Démarrer le scanner
+  const startScanner = async () => {
+    setError('');
+    
+    if (!window.Html5Qrcode) {
+      setError('Chargement du scanner... Réessayez dans 2 secondes.');
       return;
     }
 
     try {
-      let constraints = {
-        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: false
-      };
-
-      let stream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-      } catch (err) {
-        constraints = { video: true, audio: false };
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-      }
-
-      streamRef.current = stream;
+      html5QrCodeRef.current = new window.Html5Qrcode("qr-reader");
       
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.onloadedmetadata = () => {
-          videoRef.current.play()
-            .then(() => setCameraState('active'))
-            .catch(err => {
-              setCameraState('unavailable');
-              setErrorMessage('Impossible de démarrer la vidéo');
-            });
-        };
-      }
+      await html5QrCodeRef.current.start(
+        { facingMode: "environment" },
+        {
+          fps: 10,
+          qrbox: { width: 250, height: 250 },
+          aspectRatio: 1.0
+        },
+        (decodedText) => {
+          // QR Code détecté !
+          console.log('QR Code détecté:', decodedText);
+          
+          // Extraire l'ID de batterie de l'URL ou utiliser directement
+          let batteryId = decodedText;
+          if (decodedText.includes('/battery/')) {
+            const match = decodedText.match(/battery\/([^\/]+)/);
+            if (match) batteryId = match[1];
+          } else if (decodedText.includes('BP-')) {
+            const match = decodedText.match(/(BP-[\w-]+)/);
+            if (match) batteryId = match[1];
+          }
+          
+          stopScanner();
+          onScan(batteryId);
+          onClose();
+        },
+        (errorMessage) => {
+          // Ignorer les erreurs de scan normales
+        }
+      );
+      
+      setScannerActive(true);
     } catch (err) {
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        setCameraState('denied');
-        setErrorMessage('Accès à la caméra refusé. Veuillez autoriser l\'accès dans les paramètres.');
-      } else if (err.name === 'NotFoundError') {
-        setCameraState('unavailable');
-        setErrorMessage('Aucune caméra détectée.');
-      } else {
-        setCameraState('unavailable');
-        setErrorMessage(`Erreur: ${err.message || 'Inconnue'}`);
+      console.error('Erreur démarrage scanner:', err);
+      setError(`Impossible d'accéder à la caméra: ${err.message || 'Vérifiez les permissions'}`);
+    }
+  };
+
+  // Arrêter le scanner
+  const stopScanner = async () => {
+    if (html5QrCodeRef.current && scannerActive) {
+      try {
+        await html5QrCodeRef.current.stop();
+        html5QrCodeRef.current.clear();
+      } catch (err) {
+        console.error('Erreur arrêt scanner:', err);
       }
     }
-  }, []);
+    setScannerActive(false);
+  };
 
-  useEffect(() => {
-    if (isOpen) {
-      startCamera();
-    } else {
-      stopCamera();
-      setCameraState('initializing');
+  // Scanner depuis une image uploadée
+  const handleFileUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    setError('');
+    
+    if (!window.Html5Qrcode) {
+      setError('Scanner non chargé. Réessayez.');
+      return;
     }
-    return () => stopCamera();
-  }, [isOpen, startCamera, stopCamera]);
+
+    try {
+      const html5QrCode = new window.Html5Qrcode("qr-reader-file");
+      const result = await html5QrCode.scanFile(file, true);
+      
+      // Extraire l'ID
+      let batteryId = result;
+      if (result.includes('/battery/')) {
+        const match = result.match(/battery\/([^\/]+)/);
+        if (match) batteryId = match[1];
+      } else if (result.includes('BP-')) {
+        const match = result.match(/(BP-[\w-]+)/);
+        if (match) batteryId = match[1];
+      }
+      
+      onScan(batteryId);
+      onClose();
+    } catch (err) {
+      setError('Aucun QR code trouvé dans l\'image');
+    }
+  };
+
+  // Cleanup à la fermeture
+  useEffect(() => {
+    if (!isOpen) {
+      stopScanner();
+      setManualId('');
+      setError('');
+    }
+  }, [isOpen]);
 
   const handleManualSubmit = () => {
     if (manualId.trim()) {
-      stopCamera();
+      stopScanner();
       onScan(manualId.trim());
       setManualId('');
       onClose();
@@ -212,7 +265,7 @@ const QRScannerModal = ({ isOpen, onClose, onScan }) => {
   };
 
   const handleClose = () => {
-    stopCamera();
+    stopScanner();
     setManualId('');
     onClose();
   };
@@ -220,76 +273,110 @@ const QRScannerModal = ({ isOpen, onClose, onScan }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className={`${styles.glassCard} p-6 max-w-md w-full max-h-[90vh] overflow-y-auto`}>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold flex items-center gap-2">
-            <Camera className="w-5 h-5 text-cyan-400" />
+          <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+            <Camera className="w-5 h-5 text-blue-600" />
             Scanner QR Code
           </h3>
-          <button onClick={handleClose} className="p-2 hover:bg-white/10 rounded-lg">
-            <X className="w-5 h-5" />
+          <button onClick={handleClose} className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+            <X className="w-5 h-5 text-slate-500" />
           </button>
         </div>
-        
-        <div className="aspect-square bg-black/60 rounded-xl mb-4 relative overflow-hidden">
-          {cameraState === 'initializing' && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
-              <RefreshCw className="w-12 h-12 animate-spin mb-4" />
-              <p className="text-sm">Initialisation de la caméra...</p>
-            </div>
-          )}
-          
-          {cameraState === 'active' && (
-            <>
-              <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="w-48 h-48 border-2 border-cyan-400 rounded-lg relative">
-                  <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-cyan-400 rounded-tl-lg"></div>
-                  <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-cyan-400 rounded-tr-lg"></div>
-                  <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-cyan-400 rounded-bl-lg"></div>
-                  <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-cyan-400 rounded-br-lg"></div>
-                </div>
-              </div>
-            </>
-          )}
 
-          {(cameraState === 'denied' || cameraState === 'unavailable') && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 p-4">
-              <Camera className="w-16 h-16 mb-4 opacity-50" />
-              <p className="text-sm text-center mb-2">{cameraState === 'denied' ? 'Caméra non autorisée' : 'Caméra non disponible'}</p>
-              <p className="text-xs text-center text-gray-500">{errorMessage}</p>
-              <button onClick={startCamera} className={`${styles.glassButton} mt-4 text-sm`}>
-                <RefreshCw className="w-4 h-4" /> Réessayer
-              </button>
-            </div>
-          )}
+        {/* Zone de scan */}
+        <div className="mb-4">
+          <div 
+            id="qr-reader" 
+            className="w-full aspect-square bg-slate-100 rounded-xl overflow-hidden"
+            style={{ display: scannerActive ? 'block' : 'none' }}
+          />
+          <div id="qr-reader-file" style={{ display: 'none' }} />
           
-          {cameraState === 'initializing' && (
-            <video ref={videoRef} autoPlay playsInline muted className="hidden" />
+          {!scannerActive && (
+            <div className="w-full aspect-square bg-slate-100 rounded-xl flex flex-col items-center justify-center gap-4">
+              <QrCode className="w-16 h-16 text-slate-300" />
+              <p className="text-slate-500 text-sm text-center">
+                Cliquez sur "Activer Caméra" pour scanner
+              </p>
+            </div>
           )}
         </div>
 
+        {/* Erreur */}
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
+            {error}
+          </div>
+        )}
+
+        {/* Boutons de scan */}
+        <div className="flex gap-2 mb-4">
+          <button
+            onClick={scannerActive ? stopScanner : startScanner}
+            className={`flex-1 py-3 rounded-xl font-medium transition-all flex items-center justify-center gap-2 ${
+              scannerActive 
+                ? 'bg-red-100 text-red-600 hover:bg-red-200' 
+                : 'bg-blue-600 text-white hover:bg-blue-700'
+            }`}
+          >
+            <Camera className="w-5 h-5" />
+            {scannerActive ? 'Arrêter' : 'Activer Caméra'}
+          </button>
+          
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="flex-1 py-3 rounded-xl font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 transition-all flex items-center justify-center gap-2"
+          >
+            <Upload className="w-5 h-5" />
+            Importer Image
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFileUpload}
+            className="hidden"
+          />
+        </div>
+
+        {/* Séparateur */}
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex-1 h-px bg-slate-200" />
+          <span className="text-sm text-slate-400">ou</span>
+          <div className="flex-1 h-px bg-slate-200" />
+        </div>
+
+        {/* Entrée manuelle */}
         <div className="space-y-3">
-          <p className="text-center text-sm text-gray-400">Ou entrez l'ID manuellement :</p>
           <input
             type="text"
             value={manualId}
             onChange={(e) => setManualId(e.target.value)}
-            placeholder="BP-2024-LG-002"
-            className={styles.glassInput}
+            placeholder="Entrez l'ID manuellement (ex: BP-2024-LG-002)"
+            className={styles.input}
             onKeyDown={(e) => e.key === 'Enter' && handleManualSubmit()}
           />
-          <button onClick={handleManualSubmit} disabled={!manualId.trim()} className={`${styles.primaryButton} w-full disabled:opacity-50`}>
+          <button 
+            onClick={handleManualSubmit} 
+            disabled={!manualId.trim()} 
+            className={`${styles.primaryButton} w-full disabled:opacity-50`}
+          >
             <Search className="w-5 h-5" /> Rechercher
           </button>
         </div>
 
-        <div className="mt-4 pt-4 border-t border-white/10">
-          <p className="text-xs text-gray-400 mb-2">Batteries de test :</p>
+        {/* Batteries de test */}
+        <div className="mt-4 pt-4 border-t border-slate-200">
+          <p className="text-xs text-slate-400 mb-2">Batteries de test :</p>
           <div className="flex flex-wrap gap-2">
             {['BP-2024-CATL-001', 'BP-2024-LG-002', 'BP-2024-BYD-003'].map(id => (
-              <button key={id} onClick={() => { stopCamera(); onScan(id); setManualId(''); onClose(); }} className={`${styles.glassButton} text-xs`}>
+              <button 
+                key={id} 
+                onClick={() => { stopScanner(); onScan(id); setManualId(''); onClose(); }} 
+                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-medium text-slate-600 transition-colors"
+              >
                 {id}
               </button>
             ))}
@@ -302,43 +389,43 @@ const QRScannerModal = ({ isOpen, onClose, onScan }) => {
 
 // ==================== BATTERY INFO CARD ====================
 const BatteryInfoCard = ({ battery }) => (
-  <div className={`${styles.glassCard} p-6`}>
+  <div className={`${styles.card} p-6`}>
     <div className="flex items-start justify-between mb-6">
       <div className="flex items-center gap-3">
-        <div className="p-3 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500">
+        <div className="p-3 rounded-xl bg-gradient-to-br from-blue-600 to-blue-500 shadow-lg shadow-blue-500/20">
           <Battery className="w-6 h-6 text-white" />
         </div>
         <div>
-          <h3 className="font-bold text-lg">{battery.batteryId}</h3>
-          <p className="text-sm text-gray-400">{battery.batteryPassportId}</p>
+          <h3 className="font-bold text-lg text-slate-800">{battery.batteryId}</h3>
+          <p className="text-sm text-slate-500">{battery.batteryPassportId}</p>
         </div>
       </div>
       <StatusBadge status={battery.status} />
     </div>
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-      <div className="p-3 bg-white/5 rounded-xl">
-        <p className="text-xs text-gray-400 mb-1">Modèle</p>
-        <p className="font-semibold text-sm">{battery.modelName || 'N/A'}</p>
+      <div className="p-3 bg-slate-50 rounded-xl">
+        <p className="text-xs text-slate-500 mb-1">Modèle</p>
+        <p className="font-semibold text-sm text-slate-800">{battery.modelName || 'N/A'}</p>
       </div>
-      <div className="p-3 bg-white/5 rounded-xl">
-        <p className="text-xs text-gray-400 mb-1">Fabricant</p>
-        <p className="font-semibold text-sm">{battery.manufacturer || 'N/A'}</p>
+      <div className="p-3 bg-slate-50 rounded-xl">
+        <p className="text-xs text-slate-500 mb-1">Fabricant</p>
+        <p className="font-semibold text-sm text-slate-800">{battery.manufacturer || 'N/A'}</p>
       </div>
-      <div className="p-3 bg-white/5 rounded-xl">
-        <p className="text-xs text-gray-400 mb-1">Chimie</p>
-        <p className="font-semibold text-sm">{battery.composition || 'N/A'}</p>
+      <div className="p-3 bg-slate-50 rounded-xl">
+        <p className="text-xs text-slate-500 mb-1">Chimie</p>
+        <p className="font-semibold text-sm text-slate-800">{battery.composition || 'N/A'}</p>
       </div>
-      <div className="p-3 bg-white/5 rounded-xl">
-        <p className="text-xs text-gray-400 mb-1">Masse</p>
-        <p className="font-semibold text-sm">{battery.massKg ? `${battery.massKg} kg` : 'N/A'}</p>
+      <div className="p-3 bg-slate-50 rounded-xl">
+        <p className="text-xs text-slate-500 mb-1">Masse</p>
+        <p className="font-semibold text-sm text-slate-800">{battery.massKg ? `${battery.massKg} kg` : 'N/A'}</p>
       </div>
     </div>
     {battery.modules?.length > 0 && (
       <div>
-        <h4 className="font-semibold mb-3 flex items-center gap-2">
+        <h4 className="font-semibold mb-3 flex items-center gap-2 text-slate-800">
           Modules ({battery.modules.length})
           {battery.hasDefectiveModule && (
-            <span className="px-2 py-0.5 bg-red-500/20 text-red-400 text-xs rounded-full">
+            <span className="px-2 py-0.5 bg-red-100 text-red-600 text-xs rounded-full font-medium">
               {battery.defectiveModulesCount || battery.modules.filter(m => m.isDefective).length} défaillant(s)
             </span>
           )}
@@ -435,7 +522,7 @@ const GaragisteDashboard = ({ onLogout }) => {
                            currentBattery?.status === 'Repurposed';
 
   return (
-    <div className="min-h-screen p-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200 p-4">
       {toast && <Toast {...toast} onClose={() => setToast(null)} />}
       
       <QRScannerModal 
@@ -445,36 +532,44 @@ const GaragisteDashboard = ({ onLogout }) => {
       />
       
       {/* Header */}
-      <div className={`${styles.glassCard} p-4 mb-6`}>
+      <div className={`${styles.card} p-4 mb-6`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400">
+            <div className="p-2 rounded-xl bg-gradient-to-br from-blue-600 to-blue-500 shadow-lg shadow-blue-500/20">
               <Wrench className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="font-bold text-lg">Interface Garagiste</h1>
-              <p className="text-xs text-gray-400">Battery Passport - Diagnostic</p>
+              <h1 className="font-bold text-lg text-slate-800">Interface Garagiste</h1>
+              <p className="text-xs text-slate-500">Battery Passport - Diagnostic</p>
             </div>
           </div>
-          <div className="flex gap-2">
-            <button onClick={() => window.location.reload()} className={styles.glassButton} title="Recharger">
-              <RefreshCw className="w-5 h-5" />
-            </button>
-            <button onClick={onLogout} className={styles.glassButton}>
-              <LogOut className="w-5 h-5" />
-            </button>
+          <div className="flex items-center gap-4">
+            {/* Logo */}
+            <img 
+              src="/logo-equipe73.png" 
+              alt="Équipe 73"
+              className="h-10 w-auto hidden sm:block"
+            />
+            <div className="flex gap-2">
+              <button onClick={() => window.location.reload()} className={styles.button} title="Recharger">
+                <RefreshCw className="w-5 h-5" />
+              </button>
+              <button onClick={onLogout} className={styles.button}>
+                <LogOut className="w-5 h-5" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Scanner Section */}
-        <div className={`${styles.glassCard} p-6`}>
+        <div className={`${styles.card} p-6`}>
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-cyan-500/20">
-              <QrCode className="w-5 h-5 text-cyan-400" />
+            <div className="p-2 rounded-lg bg-blue-100">
+              <QrCode className="w-5 h-5 text-blue-600" />
             </div>
-            <h2 className="text-lg font-semibold">Scanner une batterie</h2>
+            <h2 className="text-lg font-semibold text-slate-800">Scanner une batterie</h2>
           </div>
           
           <div className="flex gap-3 mb-4">
@@ -483,10 +578,10 @@ const GaragisteDashboard = ({ onLogout }) => {
               value={batteryId}
               onChange={(e) => setBatteryId(e.target.value)}
               placeholder="BP-2024-LG-002"
-              className={`${styles.glassInput} flex-1`}
+              className={`${styles.input} flex-1`}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
             />
-            <button onClick={() => setShowScanner(true)} className={styles.glassButton} title="Scanner QR Code">
+            <button onClick={() => setShowScanner(true)} className={styles.button} title="Scanner QR Code">
               <Camera className="w-5 h-5" />
             </button>
             <button onClick={() => handleSearch()} disabled={loading} className={styles.primaryButton}>
@@ -495,9 +590,9 @@ const GaragisteDashboard = ({ onLogout }) => {
           </div>
           
           <div className="flex gap-2 flex-wrap">
-            <span className="text-xs text-gray-400 self-center">Batteries de test :</span>
+            <span className="text-xs text-slate-500 self-center">Batteries de test :</span>
             {['BP-2024-CATL-001', 'BP-2024-LG-002', 'BP-2024-BYD-003'].map(id => (
-              <button key={id} onClick={() => handleSearch(id)} className={`${styles.glassButton} text-xs`}>
+              <button key={id} onClick={() => handleSearch(id)} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-medium text-slate-600 transition-colors">
                 {id}
               </button>
             ))}
@@ -511,73 +606,77 @@ const GaragisteDashboard = ({ onLogout }) => {
 
             {/* Diagnostic Summary */}
             {diagnostic && (
-              <div className={`${styles.glassCard} p-6`}>
-                <h3 className="font-semibold mb-4 flex items-center gap-2">
-                  <Activity className="w-5 h-5 text-cyan-400" />
+              <div className={`${styles.card} p-6`}>
+                <h3 className="font-semibold mb-4 flex items-center gap-2 text-slate-800">
+                  <Activity className="w-5 h-5 text-blue-600" />
                   Diagnostic
                 </h3>
                 
                 <div className={`p-4 rounded-xl mb-4 ${
-                  diagnostic.diagnostic?.healthStatus === 'CRITICAL' ? 'bg-red-500/20 border border-red-500/30' :
-                  diagnostic.diagnostic?.healthStatus === 'WARNING' ? 'bg-yellow-500/20 border border-yellow-500/30' :
-                  'bg-green-500/20 border border-green-500/30'
+                  diagnostic.diagnostic?.healthStatus === 'CRITICAL' ? 'bg-red-50 border border-red-200' :
+                  diagnostic.diagnostic?.healthStatus === 'WARNING' ? 'bg-amber-50 border border-amber-200' :
+                  'bg-green-50 border border-green-200'
                 }`}>
                   <div className="flex items-center gap-3 mb-2">
                     {diagnostic.diagnostic?.healthStatus === 'CRITICAL' ? 
-                      <AlertTriangle className="w-6 h-6 text-red-400" /> : 
+                      <AlertTriangle className="w-6 h-6 text-red-600" /> : 
                       diagnostic.diagnostic?.healthStatus === 'WARNING' ?
-                      <AlertTriangle className="w-6 h-6 text-yellow-400" /> :
-                      <CheckCircle className="w-6 h-6 text-green-400" />
+                      <AlertTriangle className="w-6 h-6 text-amber-600" /> :
+                      <CheckCircle className="w-6 h-6 text-green-600" />
                     }
-                    <span className="font-bold text-lg">État: {diagnostic.diagnostic?.healthStatus}</span>
+                    <span className={`font-bold text-lg ${
+                      diagnostic.diagnostic?.healthStatus === 'CRITICAL' ? 'text-red-700' :
+                      diagnostic.diagnostic?.healthStatus === 'WARNING' ? 'text-amber-700' :
+                      'text-green-700'
+                    }`}>État: {diagnostic.diagnostic?.healthStatus}</span>
                   </div>
-                  <p className="text-gray-300">{diagnostic.recommendation}</p>
+                  <p className="text-slate-600">{diagnostic.recommendation}</p>
                 </div>
                 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="p-4 bg-white/5 rounded-xl">
-                    <Gauge className="w-8 h-8 text-cyan-400 mb-2" />
-                    <p className="text-xs text-gray-400">SOH Moyen</p>
-                    <p className="text-xl font-bold">{diagnostic.diagnostic?.avgSoh?.toFixed(1)}%</p>
+                  <div className="p-4 bg-slate-50 rounded-xl">
+                    <Gauge className="w-8 h-8 text-blue-600 mb-2" />
+                    <p className="text-xs text-slate-500">SOH Moyen</p>
+                    <p className="text-xl font-bold text-slate-800">{diagnostic.diagnostic?.avgSoh?.toFixed(1)}%</p>
                   </div>
-                  <div className="p-4 bg-white/5 rounded-xl">
-                    <AlertTriangle className="w-8 h-8 text-red-400 mb-2" />
-                    <p className="text-xs text-gray-400">Défaillants</p>
-                    <p className="text-xl font-bold">{diagnostic.diagnostic?.defectiveModules}/{diagnostic.diagnostic?.totalModules}</p>
+                  <div className="p-4 bg-slate-50 rounded-xl">
+                    <AlertTriangle className="w-8 h-8 text-red-500 mb-2" />
+                    <p className="text-xs text-slate-500">Défaillants</p>
+                    <p className="text-xl font-bold text-slate-800">{diagnostic.diagnostic?.defectiveModules}/{diagnostic.diagnostic?.totalModules}</p>
                   </div>
-                  <div className="p-4 bg-white/5 rounded-xl">
-                    <Thermometer className="w-8 h-8 text-orange-400 mb-2" />
-                    <p className="text-xs text-gray-400">Temp Moyenne</p>
-                    <p className="text-xl font-bold">{diagnostic.diagnostic?.avgTemperature?.toFixed(1)}°C</p>
+                  <div className="p-4 bg-slate-50 rounded-xl">
+                    <Thermometer className="w-8 h-8 text-orange-500 mb-2" />
+                    <p className="text-xs text-slate-500">Temp Moyenne</p>
+                    <p className="text-xl font-bold text-slate-800">{diagnostic.diagnostic?.avgTemperature?.toFixed(1)}°C</p>
                   </div>
-                  <div className="p-4 bg-white/5 rounded-xl">
-                    <Zap className="w-8 h-8 text-yellow-400 mb-2" />
-                    <p className="text-xs text-gray-400">Voltage Moyen</p>
-                    <p className="text-xl font-bold">{diagnostic.diagnostic?.avgVoltage?.toFixed(2)}V</p>
+                  <div className="p-4 bg-slate-50 rounded-xl">
+                    <Zap className="w-8 h-8 text-amber-500 mb-2" />
+                    <p className="text-xs text-slate-500">Voltage Moyen</p>
+                    <p className="text-xl font-bold text-slate-800">{diagnostic.diagnostic?.avgVoltage?.toFixed(2)}V</p>
                   </div>
                 </div>
               </div>
             )}
 
             {/* QR Code Display */}
-            <div className={`${styles.glassCard} p-6`}>
-              <h3 className="font-semibold mb-4">QR Code Batterie</h3>
+            <div className={`${styles.card} p-6`}>
+              <h3 className="font-semibold mb-4 text-slate-800">QR Code Batterie</h3>
               <div className="flex items-center gap-6">
                 <img 
                   src={api.getQRCodeImage(currentBattery.batteryId)} 
                   alt="QR Code"
-                  className="w-32 h-32 rounded-xl bg-white p-2"
+                  className="w-32 h-32 rounded-xl bg-white p-2 border border-slate-200"
                 />
                 <div className="flex-1">
-                  <p className="text-sm text-gray-400 mb-2">Scannez pour accéder au passeport</p>
-                  <code className="text-xs bg-white/10 px-3 py-1 rounded-lg block mb-3">
+                  <p className="text-sm text-slate-500 mb-2">Scannez pour accéder au passeport</p>
+                  <code className="text-xs bg-slate-100 px-3 py-1 rounded-lg block mb-3 text-slate-700">
                     {currentBattery.batteryId}
                   </code>
                   <a 
                     href={api.getBatteryPassportUrl(currentBattery.batteryId)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className={`${styles.glassButton} text-sm inline-flex`}
+                    className={`${styles.button} text-sm inline-flex`}
                   >
                     <ExternalLink className="w-4 h-4" />
                     Voir le passeport
@@ -588,19 +687,19 @@ const GaragisteDashboard = ({ onLogout }) => {
 
             {/* Report Section */}
             {currentBattery.hasDefectiveModule && !isAlreadySignaled && (
-              <div className={`${styles.glassCard} p-6 border border-red-500/30`}>
-                <h3 className="font-semibold mb-4 flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5 text-red-400" />
+              <div className={`${styles.card} p-6 border-2 border-red-200`}>
+                <h3 className="font-semibold mb-4 flex items-center gap-2 text-red-700">
+                  <AlertTriangle className="w-5 h-5" />
                   Signaler comme Waste
                 </h3>
-                <p className="text-sm text-gray-400 mb-4">
+                <p className="text-sm text-slate-600 mb-4">
                   Cette action enverra une notification au Propriétaire BP qui devra confirmer le changement de statut.
                 </p>
                 <textarea
                   value={reportReason}
                   onChange={(e) => setReportReason(e.target.value)}
                   placeholder="Raison du signalement..."
-                  className={`${styles.glassInput} min-h-[100px] resize-none mb-4`}
+                  className={`${styles.input} min-h-[100px] resize-none mb-4`}
                 />
                 <button 
                   onClick={handleReport} 
@@ -620,24 +719,24 @@ const GaragisteDashboard = ({ onLogout }) => {
 
             {/* Status info for already signaled batteries */}
             {isAlreadySignaled && (
-              <div className={`${styles.glassCard} p-6 border ${
-                currentBattery.status === 'Signaled As Waste' ? 'border-yellow-500/30' : 'border-gray-500/30'
+              <div className={`${styles.card} p-6 ${
+                currentBattery.status === 'Signaled As Waste' ? 'border-2 border-amber-200' : 'border border-slate-200'
               }`}>
                 <div className="flex items-center gap-3">
                   {currentBattery.status === 'Signaled As Waste' ? (
                     <>
-                      <AlertTriangle className="w-6 h-6 text-yellow-400" />
+                      <AlertTriangle className="w-6 h-6 text-amber-600" />
                       <div>
-                        <h3 className="font-semibold text-yellow-400">Batterie signalée - En attente de confirmation</h3>
-                        <p className="text-sm text-gray-400">Le Propriétaire BP doit confirmer le changement vers "Waste".</p>
+                        <h3 className="font-semibold text-amber-700">Batterie signalée - En attente de confirmation</h3>
+                        <p className="text-sm text-slate-600">Le Propriétaire BP doit confirmer le changement vers "Waste".</p>
                       </div>
                     </>
                   ) : (
                     <>
-                      <CheckCircle className="w-6 h-6 text-gray-400" />
+                      <CheckCircle className="w-6 h-6 text-slate-500" />
                       <div>
-                        <h3 className="font-semibold">Batterie déjà traitée</h3>
-                        <p className="text-sm text-gray-400">Statut actuel: {currentBattery.status}</p>
+                        <h3 className="font-semibold text-slate-700">Batterie déjà traitée</h3>
+                        <p className="text-sm text-slate-500">Statut actuel: {currentBattery.status}</p>
                       </div>
                     </>
                   )}
@@ -649,12 +748,17 @@ const GaragisteDashboard = ({ onLogout }) => {
 
         {/* Empty State */}
         {!currentBattery && !loading && (
-          <div className={`${styles.glassCard} p-12 text-center`}>
-            <QrCode className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-            <p className="text-gray-400 text-lg mb-2">Aucune batterie sélectionnée</p>
-            <p className="text-gray-500 text-sm">Scannez un QR code ou entrez un ID pour commencer le diagnostic</p>
+          <div className={`${styles.card} p-12 text-center`}>
+            <QrCode className="w-16 h-16 text-slate-300 mx-auto mb-4" />
+            <p className="text-slate-600 text-lg mb-2">Aucune batterie sélectionnée</p>
+            <p className="text-slate-400 text-sm">Scannez un QR code ou entrez un ID pour commencer le diagnostic</p>
           </div>
         )}
+      </div>
+
+      {/* Footer */}
+      <div className="text-center text-xs text-slate-400 mt-8 pb-4">
+        Hackathon ESILV × Capgemini Engineering • Battery Passport PoC
       </div>
     </div>
   );

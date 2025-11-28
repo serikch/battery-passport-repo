@@ -208,7 +208,7 @@ async def generate_qr_code(
             raise HTTPException(status_code=404, detail=f"Batterie {battery_id} non trouvée")
         
         # URL du passeport (à adapter selon déploiement)
-        base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
+        base_url = os.getenv("API_BASE_URL", "https://battery-passport-repo.onrender.com")
         passport_url = f"{base_url}/battery/{battery_id}/full"
         
         # Générer le QR code
@@ -254,7 +254,7 @@ async def save_qr_code(battery_id: str):
             raise HTTPException(status_code=404, detail=f"Batterie {battery_id} non trouvée")
         
         # URL du passeport
-        base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
+        base_url = os.getenv("API_BASE_URL", "https://battery-passport-repo.onrender.com")
         passport_url = f"{base_url}/battery/{battery_id}/full"
         
         # Générer le QR code

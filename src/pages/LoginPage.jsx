@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { 
-  Battery, Wrench, Building2, Recycle, Lock, User, ArrowRight, Sparkles, CheckCircle, RefreshCw
+  Wrench, Building2, Recycle, Lock, User, ArrowRight, CheckCircle, RefreshCw
 } from 'lucide-react';
 
 // Credentials préremplis pour le PoC
@@ -16,29 +16,23 @@ const ROLES = [
     name: 'Garagiste',
     icon: Wrench,
     description: 'Diagnostic & Signalement',
-    gradient: 'from-blue-500 to-cyan-400'
+    color: 'from-blue-600 to-blue-500'
   },
   {
     id: 'proprietaire',
     name: 'Propriétaire BP',
     icon: Building2,
     description: 'Gestion des statuts',
-    gradient: 'from-purple-500 to-pink-400'
+    color: 'from-slate-700 to-slate-600'
   },
   {
     id: 'centre-tri',
     name: 'Centre de Tri',
     icon: Recycle,
     description: 'Décision & Recyclage',
-    gradient: 'from-green-500 to-emerald-400'
+    color: 'from-emerald-600 to-emerald-500'
   }
 ];
-
-const styles = {
-  glassCard: "bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl shadow-xl",
-  glassInput: "w-full px-4 py-3 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 transition-all",
-  primaryButton: "px-6 py-3 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-xl text-white font-semibold transition-all hover:shadow-lg hover:shadow-purple-500/25 flex items-center justify-center gap-2",
-};
 
 const LoginPage = ({ onLogin }) => {
   const [selectedRole, setSelectedRole] = useState(null);
@@ -65,27 +59,49 @@ const LoginPage = ({ onLogin }) => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
-      <div className="w-full max-w-lg relative z-10">
-        {/* Header */}
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200">
+      {/* Fond subtil avec motif géométrique */}
+      <div className="absolute inset-0 z-0">
+        {/* Cercles décoratifs subtils */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-100 rounded-full blur-3xl opacity-40 -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-slate-200 rounded-full blur-3xl opacity-50 translate-y-1/2 -translate-x-1/2" />
+        
+        {/* Grille subtile */}
+        <div 
+          className="absolute inset-0 opacity-[0.03]"
+          style={{
+            backgroundImage: `
+              linear-gradient(to right, #334155 1px, transparent 1px),
+              linear-gradient(to bottom, #334155 1px, transparent 1px)
+            `,
+            backgroundSize: '60px 60px'
+          }}
+        />
+      </div>
+
+      <div className="w-full max-w-md relative z-10">
+        {/* Header avec Logo */}
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="relative">
-              <Battery className="w-12 h-12 text-cyan-400" />
-              <Sparkles className="w-5 h-5 text-yellow-400 absolute -top-1 -right-1" />
-            </div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-white via-cyan-200 to-purple-200 bg-clip-text text-transparent">
-              Battery Passport
-            </h1>
+          {/* Logo de l'équipe */}
+          <div className="flex justify-center mb-6">
+            <img 
+              src="/logo-equipe73.png" 
+              alt="Équipe 73 - Battery Passport"
+              className="h-28 w-auto object-contain drop-shadow-md"
+            />
           </div>
-          <p className="text-gray-400 text-sm">
-            Digital Battery Lifecycle Management System
+          
+          <h1 className="text-3xl font-bold text-slate-800 mb-2">
+            Battery Passport
+          </h1>
+          <p className="text-slate-500 text-sm">
+            Team 73
           </p>
         </div>
 
         {/* Main Card */}
-        <div className={`${styles.glassCard} p-8`}>
-          <h2 className="text-xl font-semibold mb-6 text-center">
+        <div className="bg-white/80 backdrop-blur-sm border border-slate-200 rounded-2xl shadow-xl shadow-slate-200/50 p-8">
+          <h2 className="text-lg font-semibold mb-6 text-center text-slate-700">
             Sélectionnez votre rôle
           </h2>
 
@@ -95,22 +111,22 @@ const LoginPage = ({ onLogin }) => {
               <button
                 key={role.id}
                 onClick={() => handleRoleSelect(role)}
-                className={`w-full p-4 rounded-xl border transition-all duration-300 text-left ${
+                className={`w-full p-4 rounded-xl border-2 transition-all duration-200 text-left ${
                   selectedRole?.id === role.id
-                    ? 'border-white/30 bg-white/10'
-                    : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/[0.07]'
+                    ? 'border-blue-500 bg-blue-50/50 shadow-md'
+                    : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
                 }`}
               >
                 <div className="flex items-center gap-4">
-                  <div className={`p-3 rounded-lg bg-gradient-to-br ${role.gradient}`}>
-                    <role.icon className="w-6 h-6 text-white" />
+                  <div className={`p-3 rounded-xl bg-gradient-to-br ${role.color} shadow-lg`}>
+                    <role.icon className="w-5 h-5 text-white" />
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-semibold text-white">{role.name}</h3>
-                    <p className="text-sm text-gray-400">{role.description}</p>
+                    <h3 className="font-semibold text-slate-800">{role.name}</h3>
+                    <p className="text-sm text-slate-500">{role.description}</p>
                   </div>
                   {selectedRole?.id === role.id && (
-                    <div className="w-6 h-6 rounded-full bg-gradient-to-r from-green-400 to-emerald-400 flex items-center justify-center">
+                    <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center shadow-md">
                       <CheckCircle className="w-4 h-4 text-white" />
                     </div>
                   )}
@@ -122,27 +138,27 @@ const LoginPage = ({ onLogin }) => {
           {/* Login Form */}
           {selectedRole && (
             <form onSubmit={handleLogin} className="space-y-4">
-              <div className="h-px bg-gradient-to-r from-transparent via-white/20 to-transparent my-6" />
+              <div className="h-px bg-gradient-to-r from-transparent via-slate-300 to-transparent my-6" />
               
               <div className="relative">
-                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                 <input
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className={`${styles.glassInput} pl-12`}
+                  className="w-full px-4 py-3 pl-12 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                   placeholder="Nom d'utilisateur"
                   required
                 />
               </div>
 
               <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className={`${styles.glassInput} pl-12`}
+                  className="w-full px-4 py-3 pl-12 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                   placeholder="Mot de passe"
                   required
                 />
@@ -151,7 +167,7 @@ const LoginPage = ({ onLogin }) => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className={`${styles.primaryButton} w-full py-4 text-base disabled:opacity-50`}
+                className="w-full py-4 bg-gradient-to-r from-blue-600 to-blue-500 rounded-xl text-white font-semibold transition-all hover:shadow-lg hover:shadow-blue-500/30 hover:from-blue-700 hover:to-blue-600 disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {isLoading ? (
                   <RefreshCw className="w-5 h-5 animate-spin" />
@@ -163,17 +179,22 @@ const LoginPage = ({ onLogin }) => {
                 )}
               </button>
 
-              <p className="text-center text-sm text-gray-500 mt-4">
-                Mode démo - Credentials préremplis
+              <p className="text-center text-sm text-slate-400 mt-4">
+                Mode démo • Credentials préremplis
               </p>
             </form>
           )}
         </div>
 
         {/* Footer */}
-        <p className="text-center text-xs text-gray-500 mt-6">
-          Hackathon ESILV x Capgemini Engineering - Battery Passport PoC
-        </p>
+        <div className="text-center mt-6 space-y-1">
+          <p className="text-xs text-slate-500">
+            Hackathon ESILV × Capgemini Engineering
+          </p>
+          <p className="text-xs text-slate-400">
+            Règlement UE 2023/1542 • Battery Passport PoC
+          </p>
+        </div>
       </div>
     </div>
   );
